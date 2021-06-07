@@ -9,4 +9,5 @@
 /.tox
 /dist
 /.*_cache
+/pip-wheel-metadata
 /build
