@@ -48,7 +48,7 @@ the coverage at least stays the same before you submit a pull request.
 License
 -------
 
-Distributed under the terms of the **MIT** license, `tox-in-docker` is
+Distributed under the terms of the **BSD 2 caluse** license, `tox-in-docker` is
 free and open source software.
 
 
