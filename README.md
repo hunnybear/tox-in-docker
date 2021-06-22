@@ -46,5 +46,5 @@ Issues
 ------
 
 If you encounter any problems, please
-[file an issue](https://github.com/hunnybear/tox-in-docker/issues)
+[file an issue](https://github.com/zebrafishlabs/tox-in-docker/issues)
 along with a detailed description.

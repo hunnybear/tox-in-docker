@@ -1,10 +1,10 @@
 site_name: tox-in-docker
 site_description: Plugin for running tox tests inside of docker containers
-site_author: Tyler Jachetta
+site_author: Tyler Jachetta<tjachetta@imgix.com>
 
 theme: readthedocs
 
-repo_url: https://github.com/hunnybear/tox-in-docker
+repo_url: https://github.com/zebrafishlabs/tox-in-docker
 
 pages:
 - Home: index.md
