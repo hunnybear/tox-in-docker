@@ -11,3 +11,4 @@
 /.*_cache
 /pip-wheel-metadata
 /build
+.pre-commit-config.yaml
