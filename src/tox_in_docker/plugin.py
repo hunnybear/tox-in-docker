@@ -35,8 +35,9 @@ action_store_true_overrider = functools.partial(OptionStoreBoolOverride,
                                                 False,
                                                 overrider=True,
                                                 default=False)
+
 @hookimpl
-def tox_addoption(parser):
+def tox_addoption(parser: tox.config.Parser):
     """Add a command line option for later use"""
     parser.add_argument("--magic", action="store", help="this is a magical option")
     parser.add_testenv_attribute(
@@ -48,11 +49,18 @@ def tox_addoption(parser):
 
 
 @hookimpl
-def tox_configure(config):
+def tox_configure(config: tox.config.Config):
     """Access your option during configuration"""
     verbosity0("flag magic is: {}".format(config.option.magic))
 
 
 @hookimpl
-def tox_runtest_post(venv):
-    verbosity0("cinderella is {}".format(venv.envconfig.cinderella))
+def tox_runtest(venv: tox.venv.VirtualEnv, redirect: bool):
+    """
+    Args:
+        `venv`:
+        `redirect` (bool): I have no clue what this does yet
+    """
+
+    envconfig:tox.config.TestenvConfig = venv.envconfig
+    return True
