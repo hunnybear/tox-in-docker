@@ -1,5 +1,10 @@
+import argparse
+import functools
 import pluggy
-from tox.reporter import verbosity0
+import tox
+import tox.exception
+from tox_in_docker import main
+
 
 hookimpl = pluggy.HookimplMarker("tox")
 
@@ -39,19 +44,27 @@ action_store_true_overrider = functools.partial(OptionStoreBoolOverride,
 @hookimpl
 def tox_addoption(parser: tox.config.Parser):
     """Add a command line option for later use"""
-    parser.add_argument("--magic", action="store", help="this is a magical option")
+    parser.add_argument("--in_container", action=action_store_true_overridable,
+                        help="Run")
+    parser.add_argument(
+        '--ignore_in_container', dest="in_container", action=action_store_true_overrider)
     parser.add_testenv_attribute(
-        name="cinderella",
-        type="string",
-        default="not here",
-        help="an argument pulled from the tox.ini",
+        name="docker_images",
+        type="line-list",
+        help=" ".join([
+            "List of Docker images to run in/add to the testing matrix.",
+            "All images _MUST_ have `pip` installed"
+        ])
     )
 
 
 @hookimpl
 def tox_configure(config: tox.config.Config):
     """Access your option during configuration"""
-    verbosity0("flag magic is: {}".format(config.option.magic))
+    # verbosity0("flag magic is: {}".format(config.option.magic))
+
+    # TODO
+    pass
 
 
 @hookimpl
