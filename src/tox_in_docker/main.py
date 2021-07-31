@@ -23,6 +23,3 @@ def do_launch(cmd, image='ubuntu'):
 
     return(client.containers.run(image, cmd, volumes=HERE_MOUNT))
 
-
-def hacky_test():
-    return 'foo'
