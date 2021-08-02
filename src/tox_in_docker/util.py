@@ -25,7 +25,7 @@ ENV_IMAGE_XFORMS = {
         lambda env: f'python:{env[2]}{"." + env[3:] if len(env) > 3 else ""}',
     re.compile('^py$'): lambda env: 'python:latest',
     re.compile('^pypy$'): lambda env: 'pypy:latest',
-    re.compile(r'pypy\d{1,}$'):
+    re.compile(r'^pypy\d{1,}$'):
         lambda env: f'pypy:{env[4]}{("." + env[5:] if len(env) > 5 else "")}',
     re.compile('^jy'): NoJythonSupport
 }
