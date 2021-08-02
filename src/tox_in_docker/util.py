@@ -6,6 +6,18 @@ Utilities for tox_in_docker, I guess
 
 import docker
 import re
+import tox
+
+
+class NoJythonSupport(ValueError):
+    """
+    Raise this when someone attempts to run a test for a Jython environment
+    """
+
+    def __init__(self, environment_name):
+        msg = f'detected environment {environment_name} as jython, which `tox-in-docker` does not support!'
+        super().__init__(msg)
+
 
 ENV_IMAGE_XFORMS = {
     # Not sure if it would be overengineering to make this handle both py and pypy
@@ -15,6 +27,7 @@ ENV_IMAGE_XFORMS = {
     re.compile('^pypy$'): lambda env: 'pypy:latest',
     re.compile(r'pypy\d{1,}$'):
         lambda env: f'pypy:{env[4]}{("." + env[5:] if len(env) > 5 else "")}',
+    re.compile('^jy'): NoJythonSupport
 }
 
 
