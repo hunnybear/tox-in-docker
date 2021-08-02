@@ -4,50 +4,17 @@ import pluggy
 import tox
 import tox.exception
 from tox_in_docker import main
-
+from tox_in_docker import util
 
 hookimpl = pluggy.HookimplMarker("tox")
 
 
-class OptionStoreBoolOverride(argparse.Action):
-    """
-    I'd base this off of argparse.Action._StoreConstAction were it not in the
-    private interface.
-    """
-    overridden = set()
-
-    def __init__(self, const, *args, overrider=False, nargs=0, default=False, type=bool, **kwargs):
-        self.overrider = overrider
-        super().__init__(*args, const=const, default=default, nargs=nargs, type=type, **kwargs)
-
-    def __call__(self, parser, namespace, values, option_strings=None):
-
-        if not self.overrider and self.dest in self.overridden:
-            return False
-
-        setattr(namespace, self.dest, self.const)
-
-        if self.overrider:
-            self.overridden.add(self.dest)
-
-
-action_store_true_overridable = functools.partial(OptionStoreBoolOverride,
-                                                  True,
-                                                  overrider=False,
-                                                  default=False)
-
-action_store_true_overrider = functools.partial(OptionStoreBoolOverride,
-                                                False,
-                                                overrider=True,
-                                                default=False)
-
 @hookimpl
 def tox_addoption(parser: tox.config.Parser):
     """Add a command line option for later use"""
-    parser.add_argument("--in_container", action=action_store_true_overridable,
-                        help="Run")
-    parser.add_argument(
-        '--ignore_in_container', dest="in_container", action=action_store_true_overrider)
+    parser.add_argument("--no_tox_in_docker", action='store_false', dest='use_docker',
+                        help="disable this plugin")
+
     parser.add_testenv_attribute(
         name="docker_images",
         type="line-list",
@@ -63,11 +30,27 @@ def tox_configure(config: tox.config.Config):
     """Access your option during configuration"""
     # verbosity0("flag magic is: {}".format(config.option.magic))
 
+    if not config.option.use_docker:
+        return None
+
     # TODO
     pass
 
 
 @hookimpl
+def tox_testenv_create(venv: tox.venv.VirtualEnv, action):
+    if not venv.envconfig.config.option.use_docker:
+        return None
+    if venv.envconfig.envname.startswith('.'):
+        # Not sure if this is too prescriptive
+        return None
+
+@hookimpl
+def tox_runtest_post(venv: tox.venv.VirtualEnv):
+    # Options (like `config.option` in `tox_configure`) are at
+    # `venv.envconfig.config.option`
+    pass
+
 def tox_runtest(venv: tox.venv.VirtualEnv, redirect: bool):
     """
     Args:
