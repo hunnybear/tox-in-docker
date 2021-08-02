@@ -31,7 +31,7 @@ ENV_IMAGE_XFORMS = {
 }
 
 
-def get_default_image(environment, transforms=None, verify=True):
+def get_default_image(venv: tox.venv.VirtualEnv, transforms=None, verify=True):
     """
     Get the default image which should be used for a given environment.
     """
@@ -42,11 +42,9 @@ def get_default_image(environment, transforms=None, verify=True):
     matched = set()
 
     for regex, transform in transforms.items():
-        if regex.match(environment):
+        if regex.match(venv.envname):
             print('match')
-            print(environment)
-            print(transform(environment))
-            matched.add((regex, transform(environment)))
+            matched.add((regex, transform(venv.envname)))
 
     print(matched)
     print(list(zip(*matched)))
