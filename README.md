@@ -34,7 +34,8 @@ Usage
 :warning: **No official Jython docker images exist, so there are no defaults
 for `jython` environments.**
 
-If no images are provided, a default image either from `python` or `pypy`, e.g:
+If no images are provided but `use_docker` is `True`, a default image either
+from `python` or `pypy` will be used based off of python name, e.g:
 
 | tox env &nbsp; &nbsp;| Docker image &nbsp; &nbsp;|
 | ------- | ------------- |
@@ -42,29 +43,14 @@ If no images are provided, a default image either from `python` or `pypy`, e.g:
 | `py27`  | `python:2.7`  |
 | `pypy`  | `pypy:latest` |
 
-#### `testenv.docker_images`: (`line list>`)
-A list of docker images on which to run tests. These images will be used as a
-dimension on the test matrix. Specifying  `[testenv:<env>].docker_images` will
-override this configuration completely
+#### `testenv.docker_image`|`testenv.<factor>.docker_image`: (`string`)
+A docker image on which to run tests. Any test which has `in_docker` enabled and
+does not have this specified will use the [default images](#default-images).
 
-
-##### Example
-if you provide `image-1:latest` and `image-2:1.2.3` to `docker_images`, and
-environments `py37` and `py38`, you would end up with this test matrix:
-
-|                  | env: `py37` | env: `py38` |
-| ---------------- | ----------- | ----------- |
-| `image-1:latest` |  pass/fail  |  pass/fail  |
-| `image-2:1.2.3`  |  pass/fail  |  pass/fail  |
-
-  #### `testenv.<env>.docker_images` (`line list`)
-Specifying this overrides the global `testenv.docker_images` list for this
-environment, **unless** the option `add_docker_images_to_global` is set for
-this environment, too.
-
- #### `testenv:<env>.add_docker_images_to_global` (`bool`)
-If this is true, the images specified in `testenv.<env>.docker_images` will be
-_added_ to the global images in `testenv.docker_images`
+#### `testenv.docker_artifacts` and `testenv.<environment>.docker_artifacts` (`line list`)
+A list of paths, relative to the repo root, of files and folders to copy back
+to the source workspace. This is useful for things like coverage reports and
+HTML reports, etc.
 
 
 ### Commandline options
