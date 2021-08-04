@@ -22,12 +22,9 @@ def tox_addoption(parser: tox.config.Parser):
     )
 
     parser.add_testenv_attribute(
-        name="docker_images",
-        type="line-list",
-        help=" ".join([
-            "List of Docker images to run in/add to the testing matrix.",
-            "All images _MUST_ have `pip` installed"
-        ])
+        name="docker_image",
+        type="string",
+        help="A Docker image to run the test/stage in"
     )
 
 
