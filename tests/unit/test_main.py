@@ -5,9 +5,8 @@ import tox_in_docker.main
 
 class Test_Launch(unittest.TestCase):
 
-    @mock.patch('tox_in_docker.main.do_launch')
-    def test_do_tests(self, do_launch_mock):
-        tox_in_docker.main.do_tests()
+    @mock.patch('docker.client.DockerClient')
+    @mock.patch('tox_in_docker.main.get_test_cmd')
+    def test_run_tests(self, get_cmd_mock, client_class_mock):
 
-        do_launch_mock.assert_called_once()
-
+        client = client_class_mock.return_value
