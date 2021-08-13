@@ -4,10 +4,14 @@ tox_in_docker.util
 Utilities for tox_in_docker, I guess
 """
 
+import collections
 import docker
 import re
 import tox
 
+LATEST = 'python:latest'
+
+Match = collections.namedtuple('Match', ['regex', 'image'])
 
 class NoJythonSupport(ValueError):
     """
@@ -31,10 +35,13 @@ ENV_IMAGE_XFORMS = {
 }
 
 
-def get_default_image(venv: tox.venv.VirtualEnv, transforms=None, verify=True):
+def get_default_image(envname, transforms=None, verify=True, default=None):
     """
     Get the default image which should be used for a given environment.
     """
+
+    if default is True:
+        default = LATEST
 
     if transforms is None:
         transforms = ENV_IMAGE_XFORMS
@@ -42,20 +49,19 @@ def get_default_image(venv: tox.venv.VirtualEnv, transforms=None, verify=True):
     matched = set()
 
     for regex, transform in transforms.items():
-        if regex.match(venv.envname):
-            print('match')
-            matched.add((regex, transform(venv.envname)))
-
-    print(matched)
-    print(list(zip(*matched)))
+        if regex.match(envname):
+            matched.add(Match(regex, transform(envname)))
 
     if len(matched) > 1:
         raise ValueError("\n".join([
-            f"Multiple transform matches matched for environment {environment}!",
+            f"Multiple transform matches matched for environment {envname}!",
             "\n\t* ".join([""] + [regex.pattern for regex in zip(*matched)[0]])
         ]))
 
     elif not matched:
-        raise ValueError(f"Could not find image to match environment {environment}!")
+        if default is not None:
+            matched.add(Match(None, default))
+        else:
+            raise ValueError(f"Could not find image to match environment {envname}!")
 
-    return matched.pop()[1]
+    return matched.pop().image
