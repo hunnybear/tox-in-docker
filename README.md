@@ -47,6 +47,49 @@ from `python` or `pypy` will be used based off of python name, e.g:
 A docker image on which to run tests. Any test which has `in_docker` enabled and
 does not have this specified will use the [default images](#default-images).
 
+##### Not using `docker_image` from shared `testenv` configuration
+
+If you wish to override general `testenv` settings (from the `[testenv]`
+section in `tox.ini`) in order to not define an image for a test (if you wish
+to not run that test in a container, _or_ if you wish to define a docker build
+dir for a factor), you may use the string 'None' as a value for `docker_image`.
+
+e.g., in this test, py37 will run in python:3.7, spam will run in python:latest,
+py38 will run in a bulit container, and frop will not run in a container at all
+
+```inifile
+[tox]
+minversion = 3.7
+isolated_build = true
+envlist =
+    py37
+    py38
+    frop
+    spam
+
+[testenv]
+in_docker = true
+docker_image = default
+
+commands =
+    echo nope
+
+whitelist_externals =
+  echo
+  cat
+
+[testenv:py38]
+docker_image = None
+docker_build_dir = tests/docker
+commands =
+  echo horp
+  cat /baz
+
+[testenv:frop]
+in_container = false
+
+```
+
 :warning: **Images used must have:**
   * `bash`
   * `pip`
@@ -68,8 +111,8 @@ HTML reports, etc.
 
 Contributing
 ------------
-Contributions are very welcome. Tests can be run with [tox](https://tox.readthedocs.io/en/latest/), please ensure
-the coverage at least stays the same before you submit a pull request.
+Contributions are very welcome. Tests can be run with [tox](https://tox.readthedocs.io/en/latest/),
+please ensure the coverage at least stays the same before you submit a pull request.
 
 License
 -------
