@@ -47,6 +47,11 @@ from `python` or `pypy` will be used based off of python name, e.g:
 A docker image on which to run tests. Any test which has `in_docker` enabled and
 does not have this specified will use the [default images](#default-images).
 
+:warning: **Images used must have:**
+  * `bash`
+  * `pip`
+  * an appropriate Python for the test in question
+
 #### `testenv.docker_artifacts` and `testenv.<environment>.docker_artifacts` (`line list`)
 A list of paths, relative to the repo root, of files and folders to copy back
 to the source workspace. This is useful for things like coverage reports and
