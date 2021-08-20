@@ -45,6 +45,7 @@ exit $res
 
 def run_tests(env_name,
               image=None,
+              use_local_cache=None,
               docker_client=None):
     """
     run tests for the tox environment `env_name`. this will run tests in the
@@ -65,19 +66,48 @@ def run_tests(env_name,
             - Using dockerfile instead of pulled image may negate this
     """
 
+    get_cache_dir_cmd = ['pip', 'cache', 'dir']
+    env_name = venv.envconfig.envname
+
     if docker_client is None:
         docker_client = docker.client.DockerClient()
 
     if image is None:
         image = 'python:latest'
 
-    with tempfile.TemporaryDirectory() as entrypoint_dir:
+    if use_local_cache:
+        # Get the local cache location if it exists
+        # See whether python for this env even exists locally
+        basepython_path = shutil.which(venv.envconfig.basepython)
+        if basepython_path is not None:
+            local_cache_path = subprocess.check_output(
+                [basepython_path, '-m'] + get_cache_dir_cmd).strip()
+        else:
+            use_local_cache = False
+            # ToDo use proper logging
+            print(f'not using local cache for {env_name}, {venv.envconfig.basepython} does not exist locally.')
 
+    # This second `if` is because if local python isn't found, `use_local_cache`
+    # can be turned off in the block above
+    if use_local_cache:
+        # Find container cache location
+        container_cache_path = docker_client.containers.run(
+            image=image,
+            command=get_cache_dir_cmd
+        ).strip()
+
+    with tempfile.TemporaryDirectory() as entrypoint_dir:
         volumes = {
             entrypoint_dir: {
                 'bind': ENTRYPOINT_MOUNT_DIR
             }
         }
+
+        if use_local_cache:
+            volumes[local_cache_path] = {
+                'bind': container_cache_path,
+                'mode': 'ro'
+            }
 
         volumes.update(HERE_MOUNT)
         local_ep_filename = os.path.join(entrypoint_dir, ENTRYPOINT_FILENAME)
