@@ -2,6 +2,7 @@
 import docker
 import functools
 import os.path
+import pdb
 import pluggy
 import shutil
 import tox
@@ -70,6 +71,11 @@ def tox_addoption(parser: tox.config.Parser):
         help="if True, remove the newly built container after running the test",
         default=False)
 
+    parser.add_testenv_attribute(
+        name='pdb',
+        type='bool',
+        help='Set this to True if you wish to break into PDB for any uncaught exceptions.',
+        default=False)
 
 def do_run_in_docker(venv=None, envconfig=None, config=None):
     """
@@ -191,5 +197,13 @@ def tox_runtest(venv: tox.venv.VirtualEnv, redirect: bool):
         docker_image = util.get_default_image(venv.envconfig.envname)
     # Implicit else is that docker_image stays the same (it was set to a specific image)
 
-    main.run_tests(venv.envconfig.envname, docker_image)
+    if venv.envconfig.pdb:
+        debug_catch = Exception
+    else:
+        debug_catch = tuple()
+
+    try:
+        main.run_tests(venv, image=docker_image)
+    except debug_catch:
+        pdb.post_mortem()
     return True

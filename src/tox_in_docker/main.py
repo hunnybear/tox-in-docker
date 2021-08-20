@@ -88,11 +88,9 @@ def run_tests(env_name,
                 image=image,
                 volumes=volumes,
                 entrypoint=ENTRYPOINT_PATH)
-        except docker.errors.ContainerError as run_exc:
-            import pdb
-            pdb.set_trace()
-            shutil.copytree(entrypoint_dir, '/tmp/failed_entrypoint')
-            print(run_exc)
+        except docker.errors.ContainerError as exc:
+            print(exc.container.logs(stdout=True, stderr=True),
+                  file=sys.stderr)
             raise
 
     print(results)
