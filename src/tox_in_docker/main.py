@@ -24,6 +24,9 @@ ENTRYPOINT_SCRIPT_TEMPL = f"""#!/usr/bin/env bash
 set -e
 set -x
 
+# this makes the tee below pass on the exit code
+set -o pipefail
+
 pip install --no-input --disable-pip-version-check tox &>2
 cp -r {MOUNT_POINT} {TEST_DIR}
 cd {TEST_DIR}
@@ -32,7 +35,11 @@ if pip show tox-in-docker &>2 dev/null; then
     ignore_me='--no_tox_in_docker'
 fi
 
-tox $ignore_me -e {{env_name}}
+echo "ignore me is '${{{{ignore_me}}}}'"
+tox $ignore_me -e {{env_name}} | tee /entrypoint/out.log
+res=$?
+echo "Tox res is ${{{{res}}}}"
+exit $res
 
 """
 
