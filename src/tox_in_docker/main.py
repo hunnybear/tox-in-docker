@@ -3,7 +3,6 @@ import docker
 import docker.errors
 import os
 import os.path
-import shlex
 import shutil
 import tempfile
 
@@ -44,7 +43,6 @@ exit $res
 """
 
 
-# @_docker_test_run
 def run_tests(env_name,
               image=None,
               docker_client=None):
@@ -86,7 +84,8 @@ def run_tests(env_name,
 
         # Create the entrypoint script
         with open(local_ep_filename, 'w') as file_handle:
-            file_handle.write(ENTRYPOINT_SCRIPT_TEMPL.format(env_name=env_name))
+            file_handle.write(ENTRYPOINT_SCRIPT_TEMPL.format(
+                env_name=venv.envconfig.env_name))
         os.chmod(local_ep_filename, 0o774)
         print(f'\nRunning env {env_name} in {image}!\n')
 
@@ -102,5 +101,5 @@ def run_tests(env_name,
             print(run_exc)
             raise
 
-    print(results)
+    print(results.decode())
     return results
