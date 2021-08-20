@@ -43,7 +43,7 @@ exit $res
 """
 
 
-def run_tests(env_name,
+def run_tests(venv, /,
               image=None,
               docker_client=None):
     """
