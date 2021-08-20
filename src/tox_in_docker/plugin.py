@@ -1,6 +1,5 @@
 
 import docker
-import functools
 import os.path
 import pluggy
 import shutil
@@ -12,31 +11,6 @@ from tox_in_docker import util
 hookimpl = pluggy.HookimplMarker("tox")
 
 DEFAULT_DOCKER_IMAGE = 'default'
-
-def run_in_docker_only(fn):
-
-    @functools.wraps(fn)
-    def decorated(*args, venv=None, envconfig=None, config=None, **kwargs):
-        if not args:
-
-            defined_kwargs = dict(
-                (k, v) for k, v in [
-                    ('venv', venv), ('envconfig', envconfig), ('config', config)
-                ] if v is not None
-            )
-
-            if not do_run_in_docker(defined_kwargs.get('venv') or defined_kwargs.get('envconfig') or defined_kwargs.get('config') or args[0]):
-                return None
-
-            if venv is not None:
-                kwargs['venv'] = venv
-            if envconfig is not None:
-                kwargs['envconfig'] = envconfig
-            if config is not None:
-                kwargs['config'] = config
-
-        return fn(*args, **kwargs)
-    return decorated
 
 
 @hookimpl
