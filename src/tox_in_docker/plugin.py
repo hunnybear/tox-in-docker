@@ -143,8 +143,11 @@ def tox_runtest_pre(venv: tox.venv.VirtualEnv):
 def tox_runtest(venv: tox.venv.VirtualEnv, redirect: bool):
     """
     Args:
-        `venv`:
+        `venv`: The VirtualEnv object for this specific environment
         `redirect` (bool): I have no clue what this does yet
+
+    # ToDo it may be valuable to play wiht redirection to get realtime streaming
+        output from the container
     """
 
     if is_in_docker():
