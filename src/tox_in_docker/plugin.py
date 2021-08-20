@@ -46,6 +46,8 @@ def tox_addoption(parser: tox.config.Parser):
     parser.add_argument("--no_tox_in_docker", action='store_false', dest='in_docker',
                         help="disable this plugin")
 
+    parser.add_argument("--pdb", action='store_true', help='Break into PDB for any uncaught exceptions')
+
     parser.add_testenv_attribute(
         name="in_docker",
         type="bool",
