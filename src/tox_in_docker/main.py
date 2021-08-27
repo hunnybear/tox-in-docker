@@ -71,6 +71,8 @@ def run_tests(venv, /,
     if image is None:
         image = 'python:latest'
 
+    env_name = venv.envconfig.envname
+
     with tempfile.TemporaryDirectory() as entrypoint_dir:
 
         volumes = {
@@ -85,7 +87,7 @@ def run_tests(venv, /,
         # Create the entrypoint script
         with open(local_ep_filename, 'w') as file_handle:
             file_handle.write(ENTRYPOINT_SCRIPT_TEMPL.format(
-                env_name=venv.envconfig.env_name))
+                env_name=env_name))
         os.chmod(local_ep_filename, 0o774)
         print(f'\nRunning env {env_name} in {image}!\n')
 

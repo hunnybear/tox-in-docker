@@ -5,13 +5,12 @@ Utilities for tox_in_docker, I guess
 """
 
 import collections
-import docker
 import re
-import tox
 
 LATEST = 'python:latest'
 
 Match = collections.namedtuple('Match', ['regex', 'image'])
+
 
 class NoJythonSupport(ValueError):
     """

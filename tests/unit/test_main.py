@@ -23,7 +23,6 @@ class Test_Launch(unittest.TestCase):
 
         client_mock = client_class_mock.return_value
 
-        # Docker client will be created automagically
         tox_in_docker.main.run_tests(ENV_NAME, image=IMAGE_TAG)
 
         client_mock.containers.run.assert_called_once_with(
