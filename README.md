@@ -19,11 +19,8 @@ Requirements
 Installation
 ------------
 
-You can install "tox-in-docker" via [pip](https://pypi.org/project/pip/) from [PyPI](https://pypi.org):
-
-```
-pip install tox-in-docker
-```
+Tox-in-docker is currently not distributed. We intend to distribute it via
+[PyPI](https://pypi.org)
 
 Usage
 -----
@@ -113,6 +110,10 @@ Contributing
 ------------
 Contributions are very welcome. Tests can be run with [tox](https://tox.readthedocs.io/en/latest/),
 please ensure the coverage at least stays the same before you submit a pull request.
+
+### Running tests with poetry
+
+`poetry run tox` (or, `poetry run tox -e <environment>`)
 
 License
 -------
