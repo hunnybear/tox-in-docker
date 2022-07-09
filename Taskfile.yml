@@ -1,0 +1,27 @@
+version: 3
+vars:
+  VENV_DIR: '.venv'
+  ACTIVATE: 'source {{ .VENV_DIR }}/bin/activate'
+
+tasks:
+
+  setup_venv:
+    run: once
+    cmds: ['python3 -m venv {{ .VENV_DIR }}']
+
+  build:
+    deps: [setup_venv]
+    cmds:
+      - bash -c '{{.ACTIVATE}} && pip install .\[build\]'
+      - bash -c '{{.ACTIVATE}} && pip wheel .'
+
+  maybe_bump:
+    deps: [setup_venv]
+    cmds:
+      - bash -c '{{.ACTIVATE}} && pip install .\[release\]'
+      - bash -c '{{.ACTIVATE}} &&  avakas bump . auto --flavor git-native --branch main
+
+  test:
+    cmds:
+      - bash -c '{{ .ACTIVATE }} && pip install .\[test\]'
+      - bash -c '{{ .ACTIVATE }} && tox . {{.CLI_ARGS}}'
