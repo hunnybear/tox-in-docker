@@ -6,6 +6,7 @@
 *.dist-info
 .coverage
 *.egg-info
+.venv
 /.tox
 /dist
 /.*_cache

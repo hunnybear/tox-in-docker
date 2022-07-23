@@ -108,8 +108,14 @@ HTML reports, etc.
 
 Contributing
 ------------
-Contributions are very welcome. Tests can be run with [tox](https://tox.readthedocs.io/en/latest/),
-please ensure the coverage at least stays the same before you submit a pull request.
+Contributions are very welcome. Tests can be run with
+[tox](https://tox.readthedocs.io/en/latest/),
+please ensure the coverage at least stays the same as it was previously before
+you submit a pull request.
+
+### Tooling
+
+Development and testing tooling is run with task.
 
 ### Running tests with poetry
 

@@ -1,3 +1,8 @@
+"""
+tox_in_docker.plugin
+
+Tox plugin hooks
+"""
 
 import docker
 import os.path
@@ -150,6 +155,8 @@ def tox_runtest(venv: tox.venv.VirtualEnv, redirect: bool):
         output from the container
     """
 
+    print(f'doing run in docker? {do_run_in_docker(venv=venv)}')
+
     if is_in_docker():
         print("\nrunning test in docker!\n====================\n")
         raise ValueError('foo')
@@ -168,5 +175,5 @@ def tox_runtest(venv: tox.venv.VirtualEnv, redirect: bool):
         docker_image = util.get_default_image(venv.envconfig.envname)
     # Implicit else is that docker_image stays the same (it was set to a specific image)
 
-    main.run_tests(venv.envconfig.envname, docker_image)
+    main.run_tests(venv, docker_image)
     return True

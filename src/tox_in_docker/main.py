@@ -5,6 +5,9 @@ import os
 import os.path
 import shutil
 import tempfile
+import tox
+
+from tox_in_docker import util
 
 ENTRYPOINT_MOUNT_DIR = '/entrypoint'
 ENTRYPOINT_FILENAME = 'entrypoint'
@@ -43,7 +46,7 @@ exit $res
 """
 
 
-def run_tests(venv, /,
+def run_tests(venv: tox.venv.VirtualEnv, /,
               image=None,
               docker_client=None):
     """
@@ -51,7 +54,7 @@ def run_tests(venv, /,
     image `python:latest` if no image is provided.
 
     Arguments:
-        `env_name` (`str`): The string name of a docker image
+        `venv` (`tox.`): The string name of a docker image
         `image` (`str`, optional): The image in which to run tox. defaults to
             `None`, in which case `python:latest: is used.
         `docker_client` (`docker.client.DockerClient`, optional): A docker
@@ -68,10 +71,10 @@ def run_tests(venv, /,
     if docker_client is None:
         docker_client = docker.client.DockerClient()
 
-    if image is None:
-        image = 'python:latest'
-
     env_name = venv.envconfig.envname
+
+    if image is None:
+        image = util.get_default_image(env_name)
 
     with tempfile.TemporaryDirectory() as entrypoint_dir:
 
@@ -90,18 +93,24 @@ def run_tests(venv, /,
                 env_name=env_name))
         os.chmod(local_ep_filename, 0o774)
         print(f'\nRunning env {env_name} in {image}!\n')
-
+        lines = []
         try:
-            results = docker_client.containers.run(
-                image=image,
-                volumes=volumes,
-                entrypoint=ENTRYPOINT_PATH)
+            for line in docker_client.containers.run(
+                    image=image,
+                    volumes=volumes,
+                    stream=True,
+                    entrypoint=ENTRYPOINT_PATH):
+                print(line.decode())
+                lines.append(line)
         except docker.errors.ContainerError as run_exc:
-            import pdb
-            pdb.set_trace()
-            shutil.copytree(entrypoint_dir, '/tmp/failed_entrypoint')
+            copy_dir = f'/tmp/failed_entrypoint-{env_name}'
+            if os.path.exists(copy_dir):
+                last_dir = copy_dir + '.last'
+                if os.path.exists(last_dir):
+                    shutil.rmtree(last_dir)
+                shutil.move(copy_dir, last_dir)
+            shutil.copytree(entrypoint_dir, copy_dir)
             print(run_exc)
             raise
 
-    print(results.decode())
-    return results
+    return b'/n'.join(lines).decode()

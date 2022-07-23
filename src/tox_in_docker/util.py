@@ -49,7 +49,10 @@ def get_default_image(envname, transforms=None, verify=True, default=None):
 
     for regex, transform in transforms.items():
         if regex.match(envname):
-            matched.add(Match(regex, transform(envname)))
+            transformed = transform(envname)
+            if isinstance(transformed, Exception):
+                raise transformed
+            matched.add(Match(regex, transformed))
 
     if len(matched) > 1:
         raise ValueError("\n".join([

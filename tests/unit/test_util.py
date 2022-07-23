@@ -5,6 +5,7 @@ from tox_in_docker import util
 
 class TestGetDefaultImages(unittest.TestCase):
     BASES = [('py', 'python'), ('pypy', 'pypy')]
+
     def test_latest(self):
 
         for env, image_base in self.BASES:
@@ -32,6 +33,6 @@ class TestGetDefaultImages(unittest.TestCase):
                         self.assertEqual(res, f'{image_base}:{maj_version}.{min_version}')
 
     def test_jython_raises_exception(self):
-        for jython in ['jy', 'jython', 'jy27', 'jy2']:
+        for jython in ['jy', 'jython', 'jy27', 'jy2', 'jy3']:
             with self.assertRaises(util.NoJythonSupport):
                 util.get_default_image(jython)
