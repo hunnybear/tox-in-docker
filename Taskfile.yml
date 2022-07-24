@@ -22,6 +22,7 @@ tasks:
       - bash -c '{{.ACTIVATE}} &&  avakas bump . auto --flavor git-native --branch main
 
   test:
+    deps: [setup_venv]
     cmds:
       - bash -c '{{ .ACTIVATE }} && pip install .\[test\]'
       - bash -c '{{ .ACTIVATE }} && tox . {{.CLI_ARGS}}'
