@@ -113,6 +113,20 @@ Contributions are very welcome. Tests can be run with
 please ensure the coverage at least stays the same as it was previously before
 you submit a pull request.
 
+### Development Prerequisites
+
+#### Task
+https://taskfile.dev/installation/
+
+#### Python `venv`
+Python typically ships with the `venv` module, but some built-in/OS-provided
+Pythons do not include this.
+
+##### Debian/Ubuntu
+Note that you can replace `python3` with a minor version, e.g. `python3.10`.
+
+`sudo apt install python3-venv`
+
 ### Tooling
 
 Development and testing tooling is run with task.
