@@ -31,6 +31,11 @@ class TestGetDefaultImages(unittest.TestCase):
                     with self.subTest(env=env, this_env=this_env, min_version=min_version, maj_version=maj_version):
                         res = util.get_default_image(this_env)
                         self.assertEqual(res, f'{image_base}:{maj_version}.{min_version}')
+        # I'm not sure if other pythons are effected, but at least py 3.10
+        # environment can be `py10`
+        with self.subTest(env=env, this_env='py10', min_version=10, maj_version=3):
+            res = util.get_default_image('py10')
+            self.assertEqual(res, f'{image_base}:3.10')
 
     def test_jython_raises_exception(self):
         for jython in ['jy', 'jython', 'jy27', 'jy2', 'jy3']:

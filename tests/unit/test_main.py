@@ -62,8 +62,8 @@ class Test_Launch(unittest.TestCase):
             get_image_mock.assert_called_once_with(venv_mock.envconfig.envname)
 
             client_class_mock.return_value.containers.run.assert_called_once_with(
-                ENV_NAME,
                 image=get_image_mock.return_value,
                 volumes=mock.ANY,
-                entrypoint=mock.ANY
+                entrypoint=mock.ANY,
+                stream=True
             )
