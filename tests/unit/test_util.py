@@ -15,7 +15,7 @@ class TestGetDefaultImages(unittest.TestCase):
 
     def test_major(self):
         for env, image_base in self.BASES:
-            for version in range(1, 4):
+            for version in range(2, 4):
                 print(version, str(version))
                 this_env = f'{env}{str(version)}'
                 with self.subTest(env=env, this_env=this_env, image_base=image_base):
@@ -33,9 +33,12 @@ class TestGetDefaultImages(unittest.TestCase):
                         self.assertEqual(res, f'{image_base}:{maj_version}.{min_version}')
         # I'm not sure if other pythons are effected, but at least py 3.10
         # environment can be `py10`
-        with self.subTest(env=env, this_env='py10', min_version=10, maj_version=3):
+        with self.subTest('py', this_env='py10', min_version=10, maj_version=3):
             res = util.get_default_image('py10')
-            self.assertEqual(res, f'{image_base}:3.10')
+            self.assertEqual(res, 'python:3.10')
+        with self.subTest('py', this_env='py13', min_version=10, maj_version=3):
+            res = util.get_default_image('py13')
+            self.assertEqual(res, 'python:3.13')
 
     def test_jython_raises_exception(self):
         for jython in ['jy', 'jython', 'jy27', 'jy2', 'jy3']:
