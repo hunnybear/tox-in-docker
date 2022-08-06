@@ -26,6 +26,9 @@ build = [
     "wheel~=0.37"
 ]
 
+[project.entry-points.tox]
+tox-in-docker = "tox_in_docker.plugin"
+
 [tool.setuptools.dynamic]
 readme = {file = ["README.md"], content-type = "text/markdown"}
 
