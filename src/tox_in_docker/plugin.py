@@ -21,6 +21,7 @@ DEFAULT_DOCKER_IMAGE = 'default'
 @hookimpl
 def tox_addoption(parser: tox.config.Parser):
     """Add a command line option for later use"""
+
     parser.add_argument("--no_tox_in_docker", action='store_false', dest='in_docker',
                         help="disable this plugin")
 
@@ -155,13 +156,13 @@ def tox_runtest(venv: tox.venv.VirtualEnv, redirect: bool):
         output from the container
     """
 
-    print(f'doing run in docker? {do_run_in_docker(venv=venv)}')
+    print(f'{"" if do_run_in_docker(venv=venv) else "Not "}doing run in docker.')
 
     if is_in_docker():
-        print("\nrunning test in docker!\n====================\n")
+        print(f"\nrunning test in docker!\n{'=' * 13}n")
         raise ValueError('foo')
     else:
-        print("\nNot in docker (yet?)\n============================\n")
+        print(f"\nNot in docker (yet?)\n{'=' * 13}\n")
 
     if not do_run_in_docker(venv=venv):
         return None
