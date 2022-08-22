@@ -1,15 +1,18 @@
 [paths]
 source =
-   src/
-   */site-packages
+   ./src/
 
 [run]
 branch = true
 parallel = true
 source =
-    tox_in_docker
-    tests
+    ./src/tox_in_docker
 
 [report]
+ignore_errors = true
 show_missing = true
 precision = 2
+include =
+   */tox_in_docker/*
+omit =
+   */tox_in_docker/__init__.py
