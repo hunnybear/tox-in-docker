@@ -21,18 +21,42 @@ class NoJythonSupport(ValueError):
         msg = f'detected environment {environment_name} as jython, which `tox-in-docker` does not support!'
         super().__init__(msg)
 
-# ToDo, make these ordered so they can be done in sequence until success
-ENV_IMAGE_XFORMS = {
-    # Not sure if it would be overengineering to make this handle both py and pypy
-    re.compile(r'^py[2-3]\d*$'):
-        lambda env: f'python:{env[2]}{"." + env[3:] if len(env) > 3 else ""}',
-    re.compile(r'^py[14-9]\d$'): lambda env: f'python:3.{env[2:]}',
-    re.compile('^py$'): lambda env: 'python:latest',
-    re.compile('^pypy$'): lambda env: 'pypy:latest',
-    re.compile(r'^pypy\d{1,}$'):
-        lambda env: f'pypy:{env[4]}{("." + env[5:] if len(env) > 5 else "")}',
-    re.compile('^jy'): NoJythonSupport
-}
+
+
+# These are ordered, the first one to achieve a match will be used
+ENV_IMAGE_XFORMS = [
+    (re.compile(r'^py(\d*)$'),
+        lambda match: f'python:{_get_version_tag(match)}-slim'),
+    (re.compile(r'^pypy(\d*)$'),
+        lambda match: f'pypy:{_get_version_tag(match)}-slim'),
+    (re.compile(r'^(jy.*)$'), NoJythonSupport)
+]
+
+
+def _get_version_tag(env_version: str):
+    """
+    Get the docker tag to use given the python environment name
+    """
+
+    if not env_version:
+        return 'latest'
+
+    elif not env_version.isdigit():
+        # ToDo something more specific
+        raise ValueError(f'env version must be "latest" or a digit')
+
+    # Tox environments for Python 3.10 can be expressed py10, assuming the
+    # pattern continues for other Python 3.1xs
+    elif env_version.startswith('1'):
+        return f'3.{env_version}'
+
+    elif len(env_version) == 1:
+        return env_version
+
+    else:
+        # version contains major and minor versions
+        return f'{env_version[0]}.{env_version[1:]}'
+
 
 
 def get_default_image(envname, transforms=None, verify=True, default=None):
@@ -46,25 +70,15 @@ def get_default_image(envname, transforms=None, verify=True, default=None):
     if transforms is None:
         transforms = ENV_IMAGE_XFORMS
 
-    matched = set()
-
-    for regex, transform in transforms.items():
-        if regex.match(envname):
-            transformed = transform(envname)
+    for regex, transform in transforms:
+        match = regex.match(envname)
+        if match is not None:
+            transformed = transform(match.groups()[0])
             if isinstance(transformed, Exception):
                 raise transformed
-            matched.add(Match(regex, transformed))
+            return transformed
 
-    if len(matched) > 1:
-        raise ValueError("\n".join([
-            f"Multiple transform matches matched for environment {envname}!",
-            "\n\t* ".join([""] + [regex.pattern for regex in zip(*matched)[0]])
-        ]))
+    if default is None:
+        raise ValueError(f"Could not find image to match environment {envname}!")
 
-    elif not matched:
-        if default is not None:
-            matched.add(Match(None, default))
-        else:
-            raise ValueError(f"Could not find image to match environment {envname}!")
-
-    return matched.pop().image
+    return default
