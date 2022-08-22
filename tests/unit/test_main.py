@@ -5,8 +5,24 @@ import tox
 
 import tox_in_docker.main
 
+from .util import AnyDict, AnyInt, AnyList, AnyMock
+
 ENV_NAME = 'my_env'
 IMAGE_TAG = 'my_image:oldest'
+
+
+class CommandMatcher(list):
+    def __init__(self, mock, *args, **kwargs):
+        self.mock = mock
+        super().__init__(*args, **kwargs)
+
+    def __eq__(self, other):
+        if not isinstance(other, list):
+            return False
+        if self.mock is mock.ANY:
+            return all(isinstance(el, str) or isinstance(el, mock.Mock) for el in other)
+
+        return all(isinstance(el, str) or el is self.mock for el in other)
 
 
 @mock.patch('tempfile.TemporaryDirectory')
@@ -44,10 +60,10 @@ class Test_Launch(unittest.TestCase):
 
         client_mock.containers.run.assert_called_once_with(
             image=IMAGE_TAG,
-            # might be nice to enforce dict
-            volumes=mock.ANY,
-            entrypoint=mock.ANY,
-            stream=True
+            volumes=AnyDict,
+            command=['-e', AnyMock],
+            stream=True,
+            user=AnyInt
         )
 
     def test_run_tests_auto_image(
@@ -57,13 +73,15 @@ class Test_Launch(unittest.TestCase):
         with mock.patch('tox_in_docker.util.get_default_image') as get_image_mock:
 
             venv_mock = mock.Mock(spec=tox.venv.VirtualEnv())
+            venv_mock.envconfig.in_docker = True
             tox_in_docker.main.run_tests(venv_mock)
 
             get_image_mock.assert_called_once_with(venv_mock.envconfig.envname)
 
             client_class_mock.return_value.containers.run.assert_called_once_with(
                 image=get_image_mock.return_value,
-                volumes=mock.ANY,
-                entrypoint=mock.ANY,
-                stream=True
+                volumes=AnyDict,
+                command=['-e', venv_mock.envconfig.envname],
+                stream=True,
+                user=AnyInt
             )
