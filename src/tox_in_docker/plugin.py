@@ -21,7 +21,6 @@ DEFAULT_DOCKER_IMAGE = 'default'
 @hookimpl
 def tox_addoption(parser: tox.config.Parser):
     """Add a command line option for later use"""
-
     parser.add_argument("--no_tox_in_docker", action='store_false', default=None, dest='in_docker',
                         help="disable this plugin")
 
@@ -83,13 +82,11 @@ def do_run_in_docker(venv=None, envconfig=None, config=None):
     if config.option.always_in_docker:
         return True
 
-    elif config.option.in_docker is not None:
-        return config.option.in_docker
-
-    elif envconfig.always_in_docker:
+    elif envconfig is not None and envconfig.always_in_docker:
         return True
 
-    if envconfig.in_docker:
+    # config.option
+    elif (envconfig is not None and envconfig.in_docker) or config.option.in_docker:
         hook = config.interpreters.hook.tox_get_python_executable.name
         plugin = config.pluginmanager.get_plugin('tox-in-docker')
         executable = config.pluginmanager.subset_hook_caller(hook, [plugin])(envconfig=envconfig, skip_tid=True)
@@ -104,6 +101,28 @@ def is_in_docker():
     """ Pretty self-explanatory"""
 
     return os.path.exists('/.dockerenv')
+
+
+def _ensure_tox_installed(client, docker_image: str) -> str:
+
+    # Ensure tox in image
+    #  - try to run image with --entrypoint tox and --version
+    #     + if status != 0, build new image based off of previous image with
+    #       tox installed
+    try:
+        client.containers.run(image=docker_image, entrypoint='tox', command=['--version'])
+    except docker.errors.APIError:
+        # [re-] build image with tox
+
+        built_image = main.build_testing_image(base=docker_image)
+        docker_image = built_image.id
+
+    # TODO: Raise specific exception
+    # ensure that built image is set up for tox
+
+    client.containers.run(image=docker_image, command=['--version'])
+    return docker_image
+
 
 
 @hookimpl
@@ -179,22 +198,7 @@ def tox_runtest_pre(venv: tox.venv.VirtualEnv):
             docker_image = util.get_default_image(venv.envconfig.envname, default=True)
         # Implicit else is that docker_image stays the same (it was set to a specific image)
 
-    # Ensure tox in image
-    #  - try to run image with --entrypoint tox and --version
-    #     + if status != 0, build new image based off of previous image with
-    #       tox installed
-    try:
-        client.containers.run(image=docker_image, entrypoint='tox', command=['--version'])
-    except docker.errors.APIError:
-        # [re-] build image with tox
-
-        built_image = main.build_testing_image(base=docker_image)
-        docker_image = built_image.id
-
-    # TODO: Raise specific exception
-    # ensure that built image is set up for tox
-
-    client.containers.run(image=docker_image, command=['--version'])
+    docker_image = _ensure_tox_installed(client, docker_image)
     venv.envconfig.docker_image = docker_image
 
 
