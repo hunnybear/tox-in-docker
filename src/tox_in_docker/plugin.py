@@ -177,7 +177,7 @@ def tox_runtest_pre(venv: tox.venv.VirtualEnv):
     if not do_run_in_docker(venv=venv):
         return None
 
-    client = docker.client.DockerClient()
+    client = docker.client.from_env()
 
     if venv.envconfig.docker_build_dir:
         if venv.envconfig.docker_image:

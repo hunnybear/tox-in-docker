@@ -26,9 +26,10 @@ HERE_MOUNT = {
     }
 }
 
-ENTRYPOINT_PERMS = stat.S_IWUSR | stat.S_IRUSR | stat.S_IXUSR
+ENTRYPOINT_PERMS = stat.S_IWUSR | stat.S_IRUSR | stat.S_IRGRP | stat.S_IROTH | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH
 
 # use `.format(env_name=env_name)` to complete this
+# ToDo diff state of cwd so that local diffs are copied over
 ENTRYPOINT_SCRIPT_TEMPL = f"""#!/usr/bin/env bash
 set -e
 set -x
@@ -40,7 +41,7 @@ if test -d {MOUNT_POINT}/.git; then
     # ToDo: handle this for non-git cases, and replace git if the new method is
     # performant
     BRANCH=$(git branch --show-current)
-    git init {MOUNTED_WORKING_DIR}
+    git init {MOUNTED_WORKING_DIR}/
     git push {MOUNTED_WORKING_DIR}
     cd {MOUNTED_WORKING_DIR}
     git checkout "${{BRANCH}}"
@@ -50,8 +51,9 @@ if pip show tox-in-docker &>2 dev/null; then
     ignore_me='--no_tox_in_docker'
 fi
 
-echo "ignore me is '${{ignore_me}}'"
-tox $ignore_me "$@" | tee {MOUNTED_WORKING_DIR}/out.log
+LOG_DIR=$(test -d {MOUNTED_WORKING_DIR} && echo "{MOUNTED_WORKING_DIR}" || echo "/var/log")
+
+tox $ignore_me "$@" | tee "${{LOG_DIR}}/out.log"
 res=$?
 echo "Tox res is ${{res}}"
 exit $res
@@ -60,13 +62,27 @@ exit $res
 
 DOCKERFILE_TEMPL = f"""FROM {{base}}
 
-RUN pip install --no-input --disable-pip-version-check tox
-RUN apt update && apt install -y git
-RUN mkdir {MOUNTED_WORKING_DIR} {MOUNT_POINT}
-WORKDIR {MOUNT_POINT}
-COPY {ENTRYPOINT_FILENAME} {MOUNTED_WORKING_DIR}/{ENTRYPOINT_FILENAME}
+ARG UNAME={os.getlogin()}
+ARG UID={os.getuid()}
+ARG GID={os.getgid()}
 
-ENTRYPOINT ["{MOUNTED_WORKING_DIR}/{ENTRYPOINT_FILENAME}"]
+RUN groupadd -g $GID -o $UNAME
+RUN useradd -m -u $UID -g $GID -o -s /bin/bash $UNAME
+
+RUN pip install --no-input --disable-pip-version-check tox
+RUN apt update && apt install -y git sudo
+
+RUN echo "$UNAME ALL=(ALL:ALL) NOPASSWD:ALL" >> /etc/sudoers
+
+RUN mkdir {MOUNTED_WORKING_DIR} {MOUNT_POINT} /entrypoint
+RUN chown $UID:$GID {MOUNTED_WORKING_DIR} {MOUNT_POINT} /entrypoint
+
+
+WORKDIR {MOUNT_POINT}
+COPY {ENTRYPOINT_FILENAME} /entrypoint/{ENTRYPOINT_FILENAME}
+VOLUME {MOUNTED_WORKING_DIR}
+USER $UNAME
+ENTRYPOINT ["/usr/bin/sudo", "/entrypoint/{ENTRYPOINT_FILENAME}"]
 
 """
 
@@ -77,7 +93,7 @@ def build_testing_image(base: str, client:docker.client.DockerClient = None):
     """
 
     if client is None:
-        client = docker.client.DockerClient()
+        client = docker.client.from_env()
 
     original_cwd = os.getcwd()
     dockerfile = BytesIO(DOCKERFILE_TEMPL.format(base=base).encode())
@@ -123,7 +139,7 @@ def run_tests(venv: tox.venv.VirtualEnv, /,
     """
 
     if docker_client is None:
-        docker_client = docker.client.DockerClient()
+        docker_client = docker.client.from_env()
 
     env_name = venv.envconfig.envname
 
@@ -140,15 +156,15 @@ def run_tests(venv: tox.venv.VirtualEnv, /,
         }
 
         volumes.update(HERE_MOUNT)
-        local_ep_filename = os.path.join(working_dir, ENTRYPOINT_FILENAME)
 
-        # Create the entrypoint script
-        with open(local_ep_filename, 'w') as file_handle:
-            file_handle.write(ENTRYPOINT_SCRIPT_TEMPL)
-        os.chmod(local_ep_filename, 0o774)
         print(f'\nRunning env {env_name} in {image}!\n')
         lines = []
 
+        # For debugging. Having trouble? Throw a breakpoint in here and this
+        # var should have a CLI command to drop into bash on the image
+        _run_cmd = f'docker run -it --entrypoint /bin/bash -u {os.getuid()} -v ' + ' -v '.join(f'\'{src}:{mount["bind"]}:{mount["mode"]}\'' for  src, mount in volumes.items()) + f' {image}'
+        import pdb
+        pdb.set_trace()
         try:
             for line in docker_client.containers.run(
                     image=image,
