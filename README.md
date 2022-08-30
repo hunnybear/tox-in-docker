@@ -2,7 +2,7 @@
 # tox-in-docker
 
 A free-range, grass-fed plugin for dependably running tests using docker
-containers.
+containers when a local version of a given Python is not available.
 
 Features
 --------
@@ -13,7 +13,10 @@ Features
 Requirements
 ------------
 
-* TODO
+### Docker
+
+It is intended to provide podman compatibility in the future, but as of now,
+`tox-in-docker` uses [docker](https://docs.docker.com/engine/install) exclusively
 
 
 Installation
@@ -34,11 +37,12 @@ for `jython` environments.**
 If no images are provided but `use_docker` is `True`, a default image either
 from `python` or `pypy` will be used based off of python name, e.g:
 
-| tox env &nbsp; &nbsp;| Docker image &nbsp; &nbsp;|
-| ------- | ------------- |
-| `py3`   | `python:3`    |
-| `py27`  | `python:2.7`  |
-| `pypy`  | `pypy:latest` |
+| tox env | Docker image  | Notes |
+| ------- | ------------- | ----- |
+| `py3`   | `python:3`    |       |
+| `py10`  | `python:3.10` | For Python 3.10, `tox` accepts `py10` or `py310` interchangably|
+| `py27`  | `python:2.7`  |       |
+| `pypy`  | `pypy:latest` |       |
 
 #### `testenv.docker_image`|`testenv.<factor>.docker_image`: (`string`)
 A docker image on which to run tests. Any test which has `in_docker` enabled and
@@ -108,10 +112,9 @@ HTML reports, etc.
 
 Contributing
 ------------
-Contributions are very welcome. Tests can be run with
-[tox](https://tox.readthedocs.io/en/latest/),
-please ensure the coverage at least stays the same as it was previously before
-you submit a pull request.
+Contributions are very welcome.
+please ensure that test coverage (by percent of statements, not count of
+statements) is, at minimum, what it was prior to your work.
 
 ### Development Prerequisites
 
@@ -123,17 +126,29 @@ Python typically ships with the `venv` module, but some built-in/OS-provided
 Pythons do not include this.
 
 ##### Debian/Ubuntu
+OS-packaged Pythons do not include some modules which are properly a part of
+the Python stdlib. In order to do development tasks, you must have the
+[`venv`](https://docs.python.org/3/library/venv.html#module-venv) module.
+
 Note that you can replace `python3` with a minor version, e.g. `python3.10`.
 
 `sudo apt install python3-venv`
 
+### Testing
+
+Tests may be run via `task` with `task test`
+This runs tests with `tox`. If you wish to pass arguments to `tox`, such as
+environment specifiers (e.g. `-e py39`), you may pass any arguments you wish
+after a double hyphen.
+
+For example, if you wish to only test CPython3.9 and CPython3.10:
+
+`task test -- -e py39 -e py10`
+
+
 ### Tooling
 
-Development and testing tooling is run with task.
-
-### Running tests with poetry
-
-`poetry run tox` (or, `poetry run tox -e <environment>`)
+Development and testing tooling is run with [task](#task).
 
 License
 -------
