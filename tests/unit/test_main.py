@@ -26,7 +26,7 @@ class CommandMatcher(list):
 
 
 @mock.patch('tempfile.TemporaryDirectory')
-@mock.patch('docker.client.DockerClient')
+@mock.patch('docker.client.from_env')
 class Test_Launch(unittest.TestCase):
 
     def setUp(self):
