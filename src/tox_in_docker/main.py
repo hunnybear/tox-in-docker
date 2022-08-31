@@ -30,7 +30,7 @@ ENTRYPOINT_PERMS = stat.S_IWUSR | stat.S_IRUSR | stat.S_IRGRP | stat.S_IROTH | s
 
 # use `.format(env_name=env_name)` to complete this
 # ToDo diff state of cwd so that local diffs are copied over
-ENTRYPOINT_SCRIPT_TEMPL = f"""#!/usr/bin/env bash
+ENTRYPOINT_SCRIPT_TEMPL = f"""#!/bin/bash
 set -e
 set -x
 
@@ -41,20 +41,26 @@ if test -d {MOUNT_POINT}/.git; then
     # ToDo: handle this for non-git cases, and replace git if the new method is
     # performant
     BRANCH=$(git branch --show-current)
+    # Get a diff to patch the working copy
+    git diff > /tmp/git.patch
     git init {MOUNTED_WORKING_DIR}/
     git push {MOUNTED_WORKING_DIR}
     cd {MOUNTED_WORKING_DIR}
     git checkout "${{BRANCH}}"
+    git apply /tmp/git.patch
 fi
 
-if pip show tox-in-docker &>2 dev/null; then
+if pip show tox-in-docker &2> dev/null; then
     ignore_me='--no_tox_in_docker'
 fi
 
 LOG_DIR=$(test -d {MOUNTED_WORKING_DIR} && echo "{MOUNTED_WORKING_DIR}" || echo "/var/log")
 
+set -o pipefail
 tox $ignore_me "$@" | tee "${{LOG_DIR}}/out.log"
 res=$?
+set +o pipefail
+
 echo "Tox res is ${{res}}"
 exit $res
 
@@ -72,7 +78,11 @@ RUN useradd -m -u $UID -g $GID -o -s /bin/bash $UNAME
 RUN pip install --no-input --disable-pip-version-check tox
 RUN apt update && apt install -y git sudo
 
-RUN echo "$UNAME ALL=(ALL:ALL) NOPASSWD:ALL" >> /etc/sudoers
+# Remove secure path from sudoers so we can get pythons and such
+RUN sed '/^Defaults[[:space:]]\\+secure_path/d' /etc/sudoers > /tmp/sudoers
+RUN echo "$UNAME ALL=(ALL:ALL) NOPASSWD:ALL" >> /tmp/sudoers
+# ensure sudoers is valid
+RUN visudo -cf /tmp/sudoers && cp /tmp/sudoers /etc/sudoers
 
 RUN mkdir {MOUNTED_WORKING_DIR} {MOUNT_POINT} /entrypoint
 RUN chown $UID:$GID {MOUNTED_WORKING_DIR} {MOUNT_POINT} /entrypoint
@@ -108,8 +118,6 @@ def build_testing_image(base: str, client:docker.client.DockerClient = None):
             dockerfile_path.write_text(DOCKERFILE_TEMPL.format(base=base))
             built, _logs = client.images.build(
                 path=build_dir,
-            #    custom_context=True,
-            #    fileobj=dockerfile,
                 tag=f'{base}-tox')
         finally:
             os.chdir(original_cwd)
@@ -157,33 +165,30 @@ def run_tests(venv: tox.venv.VirtualEnv, /,
 
         volumes.update(HERE_MOUNT)
 
-        print(f'\nRunning env {env_name} in {image}!\n')
+        print(f'\nRunning env {env_name} in `{image}`!\n')
         lines = []
 
         # For debugging. Having trouble? Throw a breakpoint in here and this
         # var should have a CLI command to drop into bash on the image
-        _run_cmd = f'docker run -it --entrypoint /bin/bash -u {os.getuid()} -v ' + ' -v '.join(f'\'{src}:{mount["bind"]}:{mount["mode"]}\'' for  src, mount in volumes.items()) + f' {image}'
-        import pdb
-        pdb.set_trace()
-        try:
-            for line in docker_client.containers.run(
-                    image=image,
-                    volumes=volumes,
-                    stream=True,
-                    command=['-e', env_name],
-                    user=os.getuid()):
-                print(line.decode())
-                lines.append(line)
+        run_cmd = ' '.join([
+            f'docker run -it --entrypoint /bin/bash -u {os.getuid()} -v ',
+            ' -v '.join([f'\'{src}:{mount["bind"]}:{mount["mode"]}\''
+                for  src, mount in volumes.items()]),
+            f' {image}'])
 
-        except docker.errors.ContainerError as run_exc:
-            copy_dir = f'/tmp/failed_entrypoint-{env_name}'
-            if os.path.exists(copy_dir):
-                last_dir = copy_dir + '.last'
-                if os.path.exists(last_dir):
-                    shutil.rmtree(last_dir)
-                shutil.move(copy_dir, last_dir)
-            shutil.copytree(working_dir, copy_dir)
-            print(run_exc)
-            raise
+        # If you don't have your IDE/PDB set up for doing breakpoints for you,
+        # This snippet below will break
+        # if not util.is_in_docker():
+        #    import pdb
+        #    pdb.set_trace()
+
+        for line in docker_client.containers.run(
+                image=image,
+                volumes=volumes,
+                stream=True,
+                command=['-e', env_name],
+                user=os.getuid()):
+            print(line.decode())
+            lines.append(line)
 
     return b'/n'.join(lines).decode()
