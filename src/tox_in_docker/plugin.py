@@ -97,12 +97,6 @@ def do_run_in_docker(venv=None, envconfig=None, config=None):
     return False
 
 
-def is_in_docker():
-    """ Pretty self-explanatory"""
-
-    return os.path.exists('/.dockerenv')
-
-
 def _ensure_tox_installed(client, docker_image: str) -> str:
 
     # Ensure tox in image
@@ -215,7 +209,7 @@ def tox_runtest(venv: tox.venv.VirtualEnv, redirect: bool):
 
     print(f'{"" if do_run_in_docker(venv=venv) else "Not "}doing run in docker.')
 
-    if is_in_docker():
+    if util.is_in_docker():
         print(f"\nAlready in docker\n{'=' * 13}n")
     else:
         print(f"\nNot in docker (yet?)\n{'=' * 13}\n")

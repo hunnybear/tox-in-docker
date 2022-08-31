@@ -5,6 +5,7 @@ Utilities for tox_in_docker, I guess
 """
 
 import collections
+import os
 import re
 
 LATEST = 'python:latest'
@@ -32,6 +33,11 @@ ENV_IMAGE_XFORMS = [
     (re.compile(r'^(jy.*)$'), NoJythonSupport)
 ]
 
+
+def is_in_docker():
+    """ Pretty self-explanatory"""
+
+    return os.path.exists('/.dockerenv')
 
 def _get_version_tag(env_version: str):
     """
