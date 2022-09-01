@@ -98,11 +98,13 @@ def do_run_in_docker(venv=None, envconfig=None, config=None):
 
 
 def _ensure_tox_installed(client, docker_image: str) -> str:
+    """
+    Ensure tox in image
+     - try to run image with --entrypoint tox and --version
+        + if status != 0, build new image based off of previous image with
+          tox installed
+    """
 
-    # Ensure tox in image
-    #  - try to run image with --entrypoint tox and --version
-    #     + if status != 0, build new image based off of previous image with
-    #       tox installed
     try:
         client.containers.run(image=docker_image, entrypoint='tox', command=['--version'])
     except docker.errors.APIError:
