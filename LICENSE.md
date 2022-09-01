@@ -1,4 +1,4 @@
-Copyright (c) 2016 Zebrafish Labs and Tyler Jachetta
+Copyright (c) 2022 Zebrafish Labs and Tyler Jachetta
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
