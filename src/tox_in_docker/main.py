@@ -34,8 +34,8 @@ ENTRYPOINT_SCRIPT_TEMPL = f"""#!/bin/bash
 set -e
 set -x
 
-if test -d {MOUNT_POINT}/.git; then
-
+if test -d {MOUNT_POINT}/.git ; then
+    cd {MOUNT_POINT}
     # Create a local git remote and push to it. This is _much_ faster than copying
     # the whole directory, and avoids colliding temp files
     # ToDo: handle this for non-git cases, and replace git if the new method is
@@ -43,40 +43,67 @@ if test -d {MOUNT_POINT}/.git; then
     BRANCH=$(git branch --show-current)
     # Get a diff to patch the working copy
     git diff > /tmp/git.patch
-    git init {MOUNTED_WORKING_DIR}/
+    git init {MOUNTED_WORKING_DIR} 2> /dev/null
     git push {MOUNTED_WORKING_DIR}
     cd {MOUNTED_WORKING_DIR}
-    git checkout "${{BRANCH}}"
+    git checkout "${{BRANCH}}" 2> /dev/null
     git apply /tmp/git.patch
+elif test -n "$(ls -A {MOUNT_POINT} 2> /dev/null)" ; then
+    rsync -avz {MOUNT_POINT} {MOUNTED_WORKING_DIR}
 fi
 
-if pip show tox-in-docker &2> dev/null; then
+if pip show tox-in-docker 2> /dev/null; then
     ignore_me='--no_tox_in_docker'
 fi
 
 LOG_DIR=$(test -d {MOUNTED_WORKING_DIR} && echo "{MOUNTED_WORKING_DIR}" || echo "/var/log")
+
+# Don't immediately fail if tox fails, we want to cleanup (fix perms)
+set +e
+tox --version
 
 set -o pipefail
 tox $ignore_me "$@" | tee "${{LOG_DIR}}/out.log"
 res=$?
 set +o pipefail
 
+chown -R {os.getuid()}:{os.getgid()} {MOUNTED_WORKING_DIR}
+
 echo "Tox res is ${{res}}"
 exit $res
 
 """
 
+# I'm not sure if keeping these to single statements in the try statements
+# is a foolish consistency (could combine them all in one and that _should_
+# work.)
+
+try:
+    MY_UID = os.getuid()
+except OSError:
+    MY_UID = pathlib.Path().stat().st_uid
+
+try:
+    MY_GID = os.getgid()
+except OSError:
+    MY_GID = pathlib.Path().stat().st_gid
+
+try:
+    MY_USERNAME = os.getlogin()
+except OSError:
+    MY_USERNAME = pathlib.Path().owner()
+
 DOCKERFILE_TEMPL = f"""FROM {{base}}
 
-ARG UNAME={os.getlogin()}
-ARG UID={os.getuid()}
-ARG GID={os.getgid()}
+ARG UNAME={MY_USERNAME}
+ARG UID={MY_UID}
+ARG GID={MY_GID}
 
 RUN groupadd -g $GID -o $UNAME
 RUN useradd -m -u $UID -g $GID -o -s /bin/bash $UNAME
 
 RUN pip install --no-input --disable-pip-version-check tox
-RUN apt update && apt install -y git sudo
+RUN apt update && apt install -y git sudo rsync
 
 # Remove secure path from sudoers so we can get pythons and such
 RUN sed '/^Defaults[[:space:]]\\+secure_path/d' /etc/sudoers > /tmp/sudoers
@@ -95,6 +122,7 @@ USER $UNAME
 ENTRYPOINT ["/usr/bin/sudo", "/entrypoint/{ENTRYPOINT_FILENAME}"]
 
 """
+
 
 @cache
 def build_testing_image(base: str, client:docker.client.DockerClient = None):
