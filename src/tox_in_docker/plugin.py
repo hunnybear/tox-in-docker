@@ -1,3 +1,8 @@
+"""
+tox_in_docker.plugin
+
+Tox plugin hooks
+"""
 
 import docker
 import os.path
@@ -16,21 +21,35 @@ DEFAULT_DOCKER_IMAGE = 'default'
 @hookimpl
 def tox_addoption(parser: tox.config.Parser):
     """Add a command line option for later use"""
-    parser.add_argument("--no_tox_in_docker", action='store_false', dest='in_docker',
+    parser.add_argument("--no_tox_in_docker", action='store_false', default=None, dest='in_docker',
                         help="disable this plugin")
+
+    parser.add_argument('--in_docker', action='store_true', default=None, dest='always_in_docker')
 
     parser.add_testenv_attribute(
         name="in_docker",
         type="bool",
-        help="set `true` to use tox-in-docker"
+        default=False,
+        help=' '.join((
+            "set `true` to use tox-in-docker if an appropriate Python is not",
+            "available locally. Overridden by `always_in_docker`"))
     )
 
-    # ToDo: make the below docker image things mutually exclusive
+    parser.add_testenv_attribute(
+        name='always_in_docker',
+        type='bool',
+        default=False,
+        help=' '.join((
+            'set `True` to use tox-in-docker always, even if an appropriate',
+            'Python is available locally. Overrides `in_docker`'))
+    )
 
     parser.add_testenv_attribute(
         name="docker_image",
         type="string",
-        help="A Docker image to run the test/stage in"
+        help=' '.join([
+            'A Docker image to run the test/stage in. if `docker_build_dir`',
+            'is used, this will be the tag of the created image'])
     )
 
     parser.add_testenv_attribute(
@@ -48,6 +67,8 @@ def tox_addoption(parser: tox.config.Parser):
 def do_run_in_docker(venv=None, envconfig=None, config=None):
     """
     Return `True` if this test env should be run in a docker container
+
+    `config` is from cli, `envconfig` is from `tox.ini` etc., more or less, I think.
     """
 
     if envconfig is None:
@@ -58,22 +79,45 @@ def do_run_in_docker(venv=None, envconfig=None, config=None):
         if envconfig is not None:
             config = envconfig.config
 
-    assert envconfig is not None or config is not None or venv is not None
-
-    # This will only be false when `--no_tox_in_docker` is provided
-    if not config.option.in_docker:
-        return False
-
-    if envconfig is not None and envconfig.in_docker:
+    if config.option.always_in_docker:
         return True
+
+    elif envconfig is not None and envconfig.always_in_docker:
+        return True
+
+    # config.option
+    elif (envconfig is not None and envconfig.in_docker) or config.option.in_docker:
+        hook = config.interpreters.hook.tox_get_python_executable.name
+        plugin = config.pluginmanager.get_plugin('tox-in-docker')
+        executable = config.pluginmanager.subset_hook_caller(hook, [plugin])(envconfig=envconfig, skip_tid=True)
+
+        if executable is None:
+            return True
 
     return False
 
 
-def is_in_docker():
-    """ Pretty self-explanatory"""
+def _ensure_tox_installed(client, docker_image: str) -> str:
+    """
+    Ensure tox in image
+     - try to run image with --entrypoint tox and --version
+        + if status != 0, build new image based off of previous image with
+          tox installed
+    """
 
-    return os.path.exists('/.dockerenv')
+    try:
+        client.containers.run(image=docker_image, entrypoint='tox', command=['--version'])
+    except docker.errors.APIError:
+        # [re-] build image with tox
+
+        built_image = main.build_testing_image(base=docker_image)
+        docker_image = built_image.id
+
+    # TODO: Raise specific exception
+    # ensure that built image is set up for tox
+
+    client.containers.run(image=docker_image, command=['--version'])
+    return docker_image
 
 
 @hookimpl
@@ -89,12 +133,15 @@ def tox_testenv_create(venv: tox.venv.VirtualEnv, action):
 
 
 @hookimpl
-def tox_get_python_executable(envconfig):
+def tox_get_python_executable(envconfig, skip_tid: bool=False):
     """
     Override default python executable lookup if we're running inside of a
     container
 
     """
+
+    if skip_tid:
+        return None
 
     if not do_run_in_docker(envconfig=envconfig):
         return None
@@ -109,21 +156,21 @@ def tox_runtest_post(venv: tox.venv.VirtualEnv):
     # Options (like `config.option` in `tox_configure`) are at
     # `venv.envconfig.config.option`
 
-    pass
+    if venv.run_image is not None:
+        # Add (in docker) to the env name for display in results
+        venv.envconfig.envname += ' (in docker)'
 
 
 @hookimpl
 def tox_runtest_pre(venv: tox.venv.VirtualEnv):
 
+    # Set property on virtualenv
+    venv.run_image = None
+
     if not do_run_in_docker(venv=venv):
         return None
 
-    docker_image_conversions = {'false': False, 'none': None}
-
-    if venv.envconfig.docker_image.lower() in docker_image_conversions.keys():
-        venv.envconfig.docker_image = next(
-            res for inval, res in docker_image_conversions.items() if
-            venv.envconfig.docker_image.lower() == inval)
+    client = docker.client.from_env()
 
     if venv.envconfig.docker_build_dir:
         if venv.envconfig.docker_image:
@@ -131,12 +178,21 @@ def tox_runtest_pre(venv: tox.venv.VirtualEnv):
             raise tox.exception.ConfigError('cannot specify both docker_image and docker_build_dir in one environment')
 
         # Build the image
-        client = docker.client.DockerClient()
         image, _output = client.images.build(path=venv.envconfig.docker_build_dir)
-        venv.envconfig.docker_image = image.id
+        docker_image = image.id
 
-    # Want to always do the usual. explicit is better than implicit
-    return None
+    else:
+        # use a pulled/available image:
+
+        if venv.envconfig.docker_image is None or venv.envconfig.docker_image.lower() in ['false', 'none']:
+            docker_image = util.get_default_image(venv.envconfig.envname)
+        elif venv.envconfig.docker_image.lower() == DEFAULT_DOCKER_IMAGE:
+            # use `python:latest` if another default cannot be found
+            docker_image = util.get_default_image(venv.envconfig.envname, default=True)
+        # Implicit else is that docker_image stays the same (it was set to a specific image)
+
+    docker_image = _ensure_tox_installed(client, docker_image)
+    venv.envconfig.docker_image = docker_image
 
 
 @hookimpl
@@ -146,27 +202,28 @@ def tox_runtest(venv: tox.venv.VirtualEnv, redirect: bool):
         `venv`: The VirtualEnv object for this specific environment
         `redirect` (bool): I have no clue what this does yet
 
-    # ToDo it may be valuable to play wiht redirection to get realtime streaming
+    # ToDo it may be valuable to play with redirection to get realtime streaming
         output from the container
     """
 
-    if is_in_docker():
-        print("\nrunning test in docker!\n====================\n")
-        raise ValueError('foo')
+    print(f'{"" if do_run_in_docker(venv=venv) else "Not "}doing run in docker.')
+
+    if util.is_in_docker():
+        print(f"\nAlready in docker\n{'=' * 13}n")
     else:
-        print("\nNot in docker (yet?)\n============================\n")
+        print(f"\nNot in docker (yet?)\n{'=' * 13}\n")
 
     if not do_run_in_docker(venv=venv):
         return None
 
     docker_image = venv.envconfig.docker_image
-
-    if docker_image == DEFAULT_DOCKER_IMAGE:
-        # use `python:latest` if another default cannot be found
-        docker_image = util.get_default_image(venv.envconfig.envname, default=True)
-    elif docker_image is None:
-        docker_image = util.get_default_image(venv.envconfig.envname)
-    # Implicit else is that docker_image stays the same (it was set to a specific image)
-
-    main.run_tests(venv.envconfig.envname, docker_image)
+    venv.run_image = docker_image
+    try:
+        main.run_tests(venv, docker_image)
+    except docker.errors.ContainerError as exc:
+        # Print the stderr so that it's easier to read, with line breaks as
+        # line breaks.
+        exc.stderr = exc.stderr.decode()
+        print(exc.stderr)
+        raise exc
     return True

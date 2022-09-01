@@ -1,30 +1,40 @@
-[tool.poetry]
+[project]
 name = "tox-in-docker"
-version = "0.1.0"
+dynamic = ["version", "readme"]
 description = "A tox plugin for running tests within docker containers"
-readme = "README.md"
+requires-python = "~=3.9"
+license = {file="LICENSE.md"}
+authors = [{name="H.H. Rev. Dktr. Tyler Jachetta", email = "me@tylerjachetta.net"}]
 
-authors = ["Tyler Jachetta <tjachetta@imgix.com>"]
-license = "BSD 2 clause"
+dependencies = [
+    "docker~=5.0",
+    "tox~=3.25"
+]
 
-[tool.poetry.dependencies]
-python = "^3.8"
-pytest-cov = "^2.12.1"
-docker = "^5.0.0"
+[project.optional-dependencies]
+test = ["tox~= 3.25"]
+pytest = [
+    "pytest-cov~=2.12",
+    "pytest~=6.2",
+    "pytest-xdist~=2.3"
+]
+coverage = [
+    "diff-cover~=6.2",
+    "coverage~=5.5"
+]
+build = [
+    "wheel~=0.37"
+]
 
-[tool.poetry.dev-dependencies]
-diff-cover = "^6.2.0"
-pytest = "^6.2.4"
-pytest-xdist = "^2.3.0"
-coverage = "^5.5"
-tox = "^3.7"
+[project.entry-points.tox]
+tox-in-docker = "tox_in_docker.plugin"
 
-[build-system]
-requires = ["poetry-core>=1.0.0"]
-build-backend = "poetry.core.masonry.api"
-
-[tool.poetry.plugins.tox]
-tox_in_docker = "tox_in_docker.plugin"
+[tool.setuptools.dynamic]
+readme = {file = ["README.md"], content-type = "text/markdown"}
 
 [tool.black]
 line-length = 99
+
+[build-system]
+requires = ["setuptools", "setuptools-scm", "wheel"]
+build-backend = "setuptools.build_meta"
