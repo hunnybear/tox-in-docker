@@ -120,7 +120,6 @@ def _ensure_tox_installed(client, docker_image: str) -> str:
     return docker_image
 
 
-
 @hookimpl
 def tox_testenv_create(venv: tox.venv.VirtualEnv, action):
     if not do_run_in_docker(venv=venv):
@@ -141,8 +140,6 @@ def tox_get_python_executable(envconfig, skip_tid: bool=False):
 
     """
 
-    print(f'getting exe for {envconfig.envname}. skip_tid is {skip_tid}')
-
     if skip_tid:
         return None
 
@@ -160,7 +157,7 @@ def tox_runtest_post(venv: tox.venv.VirtualEnv):
     # `venv.envconfig.config.option`
 
     if venv.run_image is not None:
-        print(f'converting {venv.envconfig.envname} to {venv.run_image}')
+        # Add (in docker) to the env name for display in results
         venv.envconfig.envname += ' (in docker)'
 
 
@@ -221,5 +218,12 @@ def tox_runtest(venv: tox.venv.VirtualEnv, redirect: bool):
 
     docker_image = venv.envconfig.docker_image
     venv.run_image = docker_image
-    main.run_tests(venv, docker_image)
+    try:
+        main.run_tests(venv, docker_image)
+    except docker.errors.ContainerError as exc:
+        # Print the stderr so that it's easier to read, with line breaks as
+        # line breaks.
+        exc.stderr = exc.stderr.decode()
+        print(exc.stderr)
+        raise exc
     return True

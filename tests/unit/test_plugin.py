@@ -1,6 +1,7 @@
 import unittest
 from unittest import mock
 
+import docker
 import tox
 
 from tox_in_docker import plugin
@@ -11,7 +12,7 @@ from .util import AnyStr
 def _get_mocks(count:int) -> list:
     return [mock.Mock() for _ in range(count)]
 
-class TestCase(unittest.TestCase):
+class TestConfiguration(unittest.TestCase):
 
     def test_add_option(self):
 
@@ -47,6 +48,35 @@ class TestRuntestPre(unittest.TestCase):
         self.do_run_in_docker_mock.assert_called_once_with(venv=venv_mock)
 
 
+class TestDocker(unittest.TestCase):
+
+    @mock.patch('tox_in_docker.main.build_testing_image')
+    def test_ensure_installed(self, build_image_mock) -> None:
+        try:
+            mock_client = mock.Mock(spec=docker.client.DockerClient())
+
+        # if docker isn't running/available, this will occur
+        except docker.errors.DockerException:
+            # ToDo spec this when cannot connect to docker server
+            mock_client = mock.Mock()
+
+        docker_image = 'vogsphere:42'
+
+        with self.subTest('image needs tox'):
+            mock_client.containers.run.configure_mock(
+                side_effect=((docker.errors.APIError(
+                    'some message I guess'), True)))
+
+            res = plugin._ensure_tox_installed(mock_client, docker_image)
+            self.assertIs(res, build_image_mock.return_value.id)
+
+        mock_client.reset_mock()
+        with self.subTest('image already has tox'):
+            mock_client.containers.run.reset_mock()
+            mock_client.containers.run.configure_mock(return_value=True, side_effect=None)
+
+            res = plugin._ensure_tox_installed(mock_client, docker_image)
+            self.assertEqual(res, docker_image)
 
 class TestDoRunInDocker(unittest.TestCase):
 
@@ -66,6 +96,9 @@ class TestDoRunInDocker(unittest.TestCase):
         with self.subTest('venv, neither_config_nor_envconfig'):
             res = plugin.do_run_in_docker(venv=self.venv_mock)
             self.assertTrue(res)
+
+        with self.subTest('envconfig, only'):
+            res = plugin.do_run_in_docker(envconfig=self.envconfig_mock)
 
         with self.subTest('venv, envconfig, config'):
             res = plugin.do_run_in_docker(venv=self.venv_mock,
