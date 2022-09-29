@@ -7,7 +7,9 @@ containers when a local version of a given Python is not available.
 Features
 --------
 
-* TODO
+* Run tox targets for any version of Python which has a docker image
+  - includes `pypy`
+  - exclues `Jython`
 
 
 Requirements
@@ -25,8 +27,37 @@ Installation
 Tox-in-docker is currently not distributed. We intend to distribute it via
 [PyPI](https://pypi.org)
 
+Until then, you may check out this repo, and `pip install .` in it.
+
 Usage
 -----
+
+### User configuration (`~/.config/tox/tox-in-docker.toml`)
+
+You may configure this plugin to use docker even when the project's `tox`
+configuration doesn't specify it. We may support more configuration in the
+future (e.g. docker config, base images), but for now, you may enable or force
+test execution in docker. This configuration will be overridden by any
+explicitly set configuration in the project configuration file.
+
+#### User Configuration Values
+
+global.in_docker: if this is `true`, all environments which don't have a
+locally available Python executable will always run in a container, if
+possible. Note that this will be overridden by `global.always_in_docker`
+
+global.always_in_docker: if this is `true`, all environments will all always
+run in docker.
+
+#### User Configuration Examples
+
+Missing Pythons will always be run in docker (unless explicitly disabled by
+the project).
+```
+[global]
+in_docker = true
+```
+
 
 ### `tox.ini` configuration
 
@@ -43,6 +74,10 @@ from `python` or `pypy` will be used based off of python name, e.g:
 | `py10`  | `python:3.10` | For Python 3.10, `tox` accepts `py10` or `py310` interchangably|
 | `py27`  | `python:2.7`  |       |
 | `pypy`  | `pypy:latest` |       |
+
+#### `testenv.in_docker`|`testenv.<factor>.in_docker`: (`bool`)
+
+#### `testenv.always_in_docker`|`testenv.<factor>.always_in_docker`: (`bool`)
 
 #### `testenv.docker_image`|`testenv.<factor>.docker_image`: (`string`)
 A docker image on which to run tests. Any test which has `in_docker` enabled and
@@ -161,5 +196,5 @@ Issues
 ------
 
 If you encounter any problems, please
-[file an issue](https://github.com/zebrafishlabs/tox-in-docker/issues)
+[file an issue](https://github.com/hunnybear/tox-in-docker/issues)
 along with a detailed description.

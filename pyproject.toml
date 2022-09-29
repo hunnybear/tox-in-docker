@@ -8,6 +8,7 @@ authors = [{name="H.H. Rev. Dktr. Tyler Jachetta", email = "me@tylerjachetta.net
 
 dependencies = [
     "docker~=5.0",
+    "toml~=0.10",
     "tox~=3.25"
 ]
 

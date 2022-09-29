@@ -1,0 +1,5 @@
+# Tox of a certain era (3.x as far as I can tell) requires this despite there
+# being both `setup.py` and `setup.cfg`
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
