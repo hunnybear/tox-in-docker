@@ -188,7 +188,7 @@ Development and testing tooling is run with [task](#task).
 License
 -------
 
-Distributed under the terms of the **BSD 2 caluse** license, `tox-in-docker` is
+Distributed under the terms of the **BSD 2 clause** license, `tox-in-docker` is
 free and open source software.
 
 
