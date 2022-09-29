@@ -7,9 +7,9 @@
 .coverage
 *.egg-info
 .venv
-/.tox
+**/.tox
 /dist
 /.*_cache
 /pip-wheel-metadata
-/build
+**/build
 .pre-commit-config.yaml

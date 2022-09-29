@@ -1,3 +1,4 @@
+from pathlib import Path
 import unittest
 import unittest.mock as mock
 
@@ -26,7 +27,6 @@ class CommandMatcher(list):
 
 
 @mock.patch('tempfile.TemporaryDirectory')
-@mock.patch('docker.client.from_env')
 class Test_Launch(unittest.TestCase):
 
     def setUp(self):
@@ -47,28 +47,49 @@ class Test_Launch(unittest.TestCase):
         chmod_patch.start()
         self.addCleanup(chmod_patch.stop)
 
-    def test_run_tests_explicit_image(
-            self,
-            client_class_mock,
-            temporary_directory_mock):
 
-        client_mock = client_class_mock.return_value
+        client_class_patch = mock.patch('docker.client.from_env')
+        self.client_class_mock = client_class_mock = client_class_patch.start()
+        self.addCleanup(client_class_patch.stop)
+
+        # set up some names for easier use
+        self.client_mock = client_mock = client_class_mock.return_value
+        self.run_mock = run_mock = client_mock.containers.run
+        self.container_mock = run_mock.return_value
+
+
+        # setup default successful container run
+        self._set_container_status(0)
+
+    def _set_container_status(self, status: int, error: str = None) -> None:
+        self.container_mock.wait.configure_mock(return_value={'StatusCode': status, 'Error': error})
+
+    def test_run_tests_explicit_image(
+            self, temporary_directory_mock):
+        """
+        Test runing tests in a docker image provided by the configuration.
+        """
 
         venv_mock = mock.Mock(spec=tox.venv.VirtualEnv())
-
         tox_in_docker.main.run_tests(venv_mock, image=IMAGE_TAG)
 
-        client_mock.containers.run.assert_called_once_with(
+        self.run_mock.assert_called_once_with(
             image=IMAGE_TAG,
-            volumes=AnyDict,
+            volumes={
+                temporary_directory_mock().__enter__(): {'bind': '/working_dir', 'mode': 'rw'},
+                str(Path().absolute()): {'bind': '/testing-ro', 'mode': 'ro'}
+            },
             command=['-e', AnyMock],
             stream=True,
-            user=AnyInt
+            stderr=True,
+            stdout=True,
+            user=AnyInt,
+            remove=True,
+            detach=True
         )
 
     def test_run_tests_auto_image(
-            self, client_class_mock,
-            temporary_directory_mock):
+            self, temporary_directory_mock):
 
         with mock.patch('tox_in_docker.util.get_default_image') as get_image_mock:
 
@@ -78,10 +99,17 @@ class Test_Launch(unittest.TestCase):
 
             get_image_mock.assert_called_once_with(venv_mock.envconfig.envname)
 
-            client_class_mock.return_value.containers.run.assert_called_once_with(
+            self.run_mock.assert_called_once_with(
                 image=get_image_mock.return_value,
-                volumes=AnyDict,
+                volumes={
+                    temporary_directory_mock().__enter__(): {'bind': '/working_dir', 'mode': 'rw'},
+                    str(Path().absolute()): {'bind': '/testing-ro', 'mode': 'ro'}
+                },
                 command=['-e', venv_mock.envconfig.envname],
                 stream=True,
-                user=AnyInt
+                stderr=True,
+                stdout=True,
+                user=AnyInt,
+                remove=True,
+                detach=True
             )

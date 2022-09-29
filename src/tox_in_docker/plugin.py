@@ -3,13 +3,20 @@ tox_in_docker.plugin
 
 Tox plugin hooks
 """
+import logging
+import pathlib
+import os
+import os.path
+import shutil
 
 import docker
-import os.path
+from pathlib import Path
 import pluggy
-import shutil
+import socket
+import toml
 import tox
 import tox.exception
+
 from tox_in_docker import main
 from tox_in_docker import util
 
@@ -17,19 +24,47 @@ hookimpl = pluggy.HookimplMarker("tox")
 
 DEFAULT_DOCKER_IMAGE = 'default'
 
+USER_CONF_FILE = pathlib.Path().home().joinpath(
+    '.config', 'tox', 'tox-in-docker.toml')
+
+
+def get_base_image(venv):
+
+    if venv.envconfig.docker_image is None or venv.envconfig.docker_image.lower() in ['false', 'none']:
+        return util.get_default_image(venv.envconfig.envname)
+    elif venv.envconfig.docker_image.lower() == DEFAULT_DOCKER_IMAGE:
+        # use `python:latest` if another default cannot be found
+        return util.get_default_image(venv.envconfig.envname, default=True)
+    else:
+        return venv.envconfig.docker_image
 
 @hookimpl
 def tox_addoption(parser: tox.config.Parser):
-    """Add a command line option for later use"""
-    parser.add_argument("--no_tox_in_docker", action='store_false', default=None, dest='in_docker',
+
+    # Use defaults from the user configuration
+    if USER_CONF_FILE.is_file():
+        try:
+            user_config = toml.loads(USER_CONF_FILE.read_text())
+        except toml.decoder.TomlDecodeError:
+            # ToDo give a warning
+            user_config = {}
+    else:
+        user_config = {}
+
+    in_docker_default = user_config.get('global', {}).get('in_docker')
+    always_default = user_config.get('global', {}).get('always_in_docker')
+
+    tox.reporter.info(f'Tox in docker user defaults: {user_config.get("global")}')
+
+    parser.add_argument("--no_tox_in_docker", action='store_false', default=in_docker_default, dest='in_docker',
                         help="disable this plugin")
 
-    parser.add_argument('--in_docker', action='store_true', default=None, dest='always_in_docker')
-
+    parser.add_argument('--in_docker', action='store_true', default=in_docker_default, dest='in_docker')
+    parser.add_argument('--always_in_docker', action='store_true', default=always_default, dest='always_in_docker')
     parser.add_testenv_attribute(
         name="in_docker",
         type="bool",
-        default=False,
+        default=in_docker_default or False,
         help=' '.join((
             "set `true` to use tox-in-docker if an appropriate Python is not",
             "available locally. Overridden by `always_in_docker`"))
@@ -38,7 +73,7 @@ def tox_addoption(parser: tox.config.Parser):
     parser.add_testenv_attribute(
         name='always_in_docker',
         type='bool',
-        default=False,
+        default=always_default or False,
         help=' '.join((
             'set `True` to use tox-in-docker always, even if an appropriate',
             'Python is available locally. Overrides `in_docker`'))
@@ -55,7 +90,14 @@ def tox_addoption(parser: tox.config.Parser):
     parser.add_testenv_attribute(
         name="docker_build_dir",
         type="string",
-        help="A Dockerfile from which to build the test container")
+        help="A directory containing a Dockerfile from which to build the test container"
+    )
+
+    parser.add_testenv_attribute(
+        name="docker_build_base_arg",
+        type="string",
+        help="the name of the build arg in your dockerfile which accepts the base image. Requires docker_build_dir",
+        default=None)
 
     parser.add_testenv_attribute(
         name="cleanup_built_container",
@@ -80,9 +122,11 @@ def do_run_in_docker(venv=None, envconfig=None, config=None):
             config = envconfig.config
 
     if config.option.always_in_docker:
+        tox.reporter.info('Tox in docker reason: option.always_in_docker (CLI) is True-y')
         return True
 
     elif envconfig is not None and envconfig.always_in_docker:
+        tox.reporter.info('Tox in docker reason: envconfig.always_in_docker (ini or toml file) is True-y')
         return True
 
     # config.option
@@ -98,25 +142,26 @@ def do_run_in_docker(venv=None, envconfig=None, config=None):
 
 
 def _ensure_tox_installed(client, docker_image: str) -> str:
+    """
+    Ensure tox in image
+     - try to run image with --entrypoint tox and --version
+        + if status != 0, build new image based off of previous image with
+          tox installed
+    """
 
-    # Ensure tox in image
-    #  - try to run image with --entrypoint tox and --version
-    #     + if status != 0, build new image based off of previous image with
-    #       tox installed
     try:
         client.containers.run(image=docker_image, entrypoint='tox', command=['--version'])
     except docker.errors.APIError:
         # [re-] build image with tox
 
         built_image = main.build_testing_image(base=docker_image)
-        docker_image = built_image.id
+        docker_image = built_image.tags[0] if built_image.tags else built_image.id
 
     # TODO: Raise specific exception
     # ensure that built image is set up for tox
 
-    client.containers.run(image=docker_image, command=['--version'])
+    client.containers.run(image=docker_image, command=['--version'], remove=True)
     return docker_image
-
 
 
 @hookimpl
@@ -139,8 +184,6 @@ def tox_get_python_executable(envconfig, skip_tid: bool=False):
 
     """
 
-    print(f'getting exe for {envconfig.envname}. skip_tid is {skip_tid}')
-
     if skip_tid:
         return None
 
@@ -158,7 +201,7 @@ def tox_runtest_post(venv: tox.venv.VirtualEnv):
     # `venv.envconfig.config.option`
 
     if venv.run_image is not None:
-        print(f'converting {venv.envconfig.envname} to {venv.run_image}')
+        # Add (in docker) to the env name for display in results
         venv.envconfig.envname += ' (in docker)'
 
 
@@ -174,26 +217,36 @@ def tox_runtest_pre(venv: tox.venv.VirtualEnv):
     client = docker.client.from_env()
 
     if venv.envconfig.docker_build_dir:
-        if venv.envconfig.docker_image:
+        docker_build_dir = venv.envconfig.docker_build_dir
 
-            raise tox.exception.ConfigError('cannot specify both docker_image and docker_build_dir in one environment')
+        # ToDo consider raising a warning if docker_image and docker_build_dir
+        # are both set, in case there's confusion.
+        tag = (venv.envconfig.docker_image if venv.envconfig.docker_image
+               else f'tid-{socket.gethostname().lower()}-{Path(os.getcwd()).name.lower()}')
+
+        if ':' not in tag:
+            tag = f'{tag}:latest'
+
+        build_args = {}
+
+        if venv.envconfig.docker_build_base_arg:
+            build_base_image = util.get_default_image(venv.envconfig.envname)
+            build_args['BASE'] = build_base_image
 
         # Build the image
-        image, _output = client.images.build(path=venv.envconfig.docker_build_dir)
-        docker_image = image.id
+        image, _output = client.images.build(
+            buildargs=build_args,
+            path=docker_build_dir,
+            tag=tag)
+        base_image = tag
 
     else:
         # use a pulled/available image:
+        base_image = get_base_image(venv)
 
-        if venv.envconfig.docker_image is None or venv.envconfig.docker_image.lower() in ['false', 'none']:
-            docker_image = util.get_default_image(venv.envconfig.envname)
-        elif venv.envconfig.docker_image.lower() == DEFAULT_DOCKER_IMAGE:
-            # use `python:latest` if another default cannot be found
-            docker_image = util.get_default_image(venv.envconfig.envname, default=True)
-        # Implicit else is that docker_image stays the same (it was set to a specific image)
 
-    docker_image = _ensure_tox_installed(client, docker_image)
-    venv.envconfig.docker_image = docker_image
+    docker_image = main.build_testing_image(base_image, client)
+    venv.envconfig.docker_image = docker_image.id
 
 
 @hookimpl
@@ -207,17 +260,35 @@ def tox_runtest(venv: tox.venv.VirtualEnv, redirect: bool):
         output from the container
     """
 
-    print(f'{"" if do_run_in_docker(venv=venv) else "Not "}doing run in docker.')
+    tox.reporter.verbosity1(f'{"" if do_run_in_docker(venv=venv) else "Not "}doing run in docker.')
 
     if util.is_in_docker():
-        print(f"\nAlready in docker\n{'=' * 13}n")
+        tox.reporter.info(f"\nAlready in docker\n{'=' * 13}n")
     else:
-        print(f"\nNot in docker (yet?)\n{'=' * 13}\n")
+        tox.reporter.info(f"\nNot in docker (yet?)\n{'=' * 13}\n")
 
     if not do_run_in_docker(venv=venv):
         return None
 
     docker_image = venv.envconfig.docker_image
     venv.run_image = docker_image
-    main.run_tests(venv, docker_image)
+    tox.reporter.separator("=", "In Docker", tox.reporter.Verbosity.QUIET)
+    try:
+        container = main.run_tests(venv, docker_image, remove_container=False)
+    except docker.errors.ContainerError as exc:
+
+        # This bit here is copied from `tox.venv.test()`, more or less
+        venv.status = "commands failed"
+
+        # ToDo find stderr lines in logs and color them, instead of repeating
+
+        exc.stderr = exc.stderr.decode()
+        tox.reporter.separator("-", "Container Logs (stdout + stderr)", tox.reporter.Verbosity.QUIET)
+        tox.reporter.line(exc.container.logs().decode())
+        tox.reporter.separator("-", "Container Stderr", tox.reporter.Verbosity.QUIET)
+        tox.reporter.error('\n' + exc.stderr)
+        exc.container.remove()
+        return False
+    else:
+        container.remove()
     return True
