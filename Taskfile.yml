@@ -24,6 +24,11 @@ tasks:
     cmds:
       - 'bash -c "{{.ACTIVATE}} && pip install .{{ .EXTRAS_REQ }}"'
 
+  clean:
+    run: once
+    cmds:
+      - 'rm -rf "{{.VENV_DIR}}" .tox'
+
   build:
     deps:
       - setup_venv
