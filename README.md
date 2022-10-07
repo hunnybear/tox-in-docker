@@ -11,6 +11,24 @@ Features
   - includes `pypy`
   - exclues `Jython`
 
+* [User configuration](#user-configuration) allows users to use this plugin
+  withiout it being configured on the project
+  - Never install a version of Python just to test against it again!
+
+Limitations
+-----------
+
+### Container Platforms
+
+This plugin is currently fairly opinionated about running in a debian-based
+container (e.g. using apt for installations and such), and, as of this
+writing, has only been used/tested on `ubuntu`-based and `debian`-based images.
+
+It is certainly intended to, in the future, support other linuxes. It is not
+certain that OSX support will be included, and if so, likely not soon. Windows
+is a monster for which I'd love to see PRs. If you're an intrepid dev who
+feels inclined to add any of the above support, off to 
+[Contributing](#contributing) with you!
 
 Requirements
 ------------
@@ -39,6 +57,11 @@ configuration doesn't specify it. We may support more configuration in the
 future (e.g. docker config, base images), but for now, you may enable or force
 test execution in docker. This configuration will be overridden by any
 explicitly set configuration in the project configuration file.
+
+Note that this plugin must be installed in the same environment from which
+`tox` is run. Thus, even if user configuration is set up and `tox-in-docker`
+is installed for the whole host or the user, and testing tooling for your
+project creates a new virtual environment, this may not work immediately.
 
 #### User Configuration Values
 
