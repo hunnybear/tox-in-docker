@@ -276,9 +276,9 @@ def tox_runtest(venv: tox.venv.VirtualEnv, redirect: bool):
     try:
         container = main.run_tests(venv, docker_image, remove_container=False)
     except docker.errors.ContainerError as exc:
+        # "commands failed" is copied from `tox.venv.test()`, more or less
+        venv.status = exc.venv_status or "commands failed"
 
-        # This bit here is copied from `tox.venv.test()`, more or less
-        venv.status = "commands failed"
 
         # ToDo find stderr lines in logs and color them, instead of repeating
 

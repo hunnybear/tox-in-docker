@@ -18,7 +18,8 @@ from tox_in_docker import util
 BREAK_BEFORE_RUN_ENV = "TID_BREAK_BEFORE_RUN"
 BREAK_AFTER_RUN_ENV = "TID_BREAK_AFTER_RUN"
 
-MOUNTED_WORKING_DIR = '/working_dir'
+MOUNTED_WORKING_DIR = os.getcwd()
+MOUNTED_TOX_DIR = '/.tox'
 ENTRYPOINT_FILENAME = 'entrypoint'
 ENTRYPOINT_PATH = os.path.join(MOUNTED_WORKING_DIR, ENTRYPOINT_FILENAME)
 MOUNT_POINT = '/testing-ro'
@@ -59,27 +60,20 @@ set -e
 # `set -x` will print all commands as they are being run
 #set -x
 
-sudo chmod -R 1777 {MOUNTED_WORKING_DIR}
+function cleanup() {{
+    sudo chown -R 0:0 {MOUNTED_WORKING_DIR} {MOUNTED_TOX_DIR}
+    sudo chmod -R 1777 {MOUNTED_WORKING_DIR} {MOUNTED_TOX_DIR}
+}}
 
-if test -d {MOUNT_POINT}/.git ; then
-    cd {MOUNT_POINT}
-    # Create a local git remote and push to it. This is _much_ faster than copying
-    # the whole directory, and avoids colliding temp files
-    # ToDo: handle this for non-git cases, and replace git if the new method is
-    # performant
-    BRANCH=$(git branch --show-current)
-    # Get a diff to patch the working copy
-    git diff > /tmp/git.patch
-    git init {MOUNTED_WORKING_DIR} 2> /dev/null
-    git push {MOUNTED_WORKING_DIR}
-    cd {MOUNTED_WORKING_DIR}
-    git checkout "${{BRANCH}}" 2> /dev/null
-    test -s /tmp/git.patch && git apply /tmp/git.patch
-elif test -n "$(ls -A {MOUNT_POINT} 2> /dev/null)" ; then
-    sudo rsync -avzO --no-perms {MOUNT_POINT}/ --exclude .venv --exclude .tox {MOUNTED_WORKING_DIR}
-    sudo chown -R {MY_UID}:{MY_GID} {MOUNTED_WORKING_DIR}
-    cd {MOUNTED_WORKING_DIR}
-fi
+# always cleanup even if sigint recieved
+trap cleanup SIGINT
+
+sudo chmod -R 1777 {MOUNTED_WORKING_DIR} {MOUNTED_TOX_DIR}
+
+sudo rsync -avzO --info=stats1,misc0,flist0 --no-perms {MOUNT_POINT}/ --exclude .venv --exclude .tox --exclude .git {MOUNTED_WORKING_DIR}
+cd {MOUNTED_WORKING_DIR}
+
+sudo chown -R {MY_UID}:{MY_GID} {MOUNTED_WORKING_DIR} {MOUNTED_TOX_DIR}
 
 if pip show tox-in-docker 2> /dev/null; then
     ignore_me='--no_tox_in_docker'
@@ -91,12 +85,11 @@ LOG_DIR=$(test -d {MOUNTED_WORKING_DIR} && echo "{MOUNTED_WORKING_DIR}" || echo 
 set +e
 
 set -o pipefail
-tox $ignore_me "$@" ./tests | tee "${{LOG_DIR}}/out.log"
+tox $ignore_me --workdir "{MOUNTED_TOX_DIR}" "$@" ./tests | tee "${{LOG_DIR}}/out.log"
 res=$?
 set +o pipefail
 
-sudo chown -R 0:0 {MOUNTED_WORKING_DIR}
-sudo chmod -R 1777 {MOUNTED_WORKING_DIR}
+cleanup
 
 exit $res
 
@@ -121,7 +114,7 @@ RUN echo "$UNAME ALL=(ALL:ALL) NOPASSWD:ALL" >> /tmp/sudoers
 # ensure sudoers is valid
 RUN visudo -cf /tmp/sudoers && cp /tmp/sudoers /etc/sudoers
 
-RUN mkdir {MOUNTED_WORKING_DIR} {MOUNT_POINT} /entrypoint
+RUN mkdir -p {MOUNTED_WORKING_DIR} {MOUNT_POINT} /entrypoint
 COPY {ENTRYPOINT_FILENAME} /entrypoint/{ENTRYPOINT_FILENAME}
 RUN chown  -R {MY_UID}:{MY_GID} {MOUNTED_WORKING_DIR} {MOUNT_POINT} /entrypoint
 RUN chmod -R 1775 {MOUNTED_WORKING_DIR} {MOUNT_POINT} /entrypoint
@@ -169,7 +162,8 @@ def build_testing_image(
 def run_tests(venv: tox.venv.VirtualEnv, /,
               image=None,
               docker_client=None,
-              break_before_run: bool = os.getenv(BREAK_BEFORE_RUN_ENV) is not None,
+              break_before_run: bool = bool(os.getenv(BREAK_BEFORE_RUN_ENV)),
+              break_after_run: bool = bool(os.getenv(BREAK_AFTER_RUN_ENV)),
               remove_container=True):
     """
     run tests for the tox environment `env_name`. this will run tests in the
@@ -198,48 +192,65 @@ def run_tests(venv: tox.venv.VirtualEnv, /,
     if image is None:
         image = util.get_default_image(env_name)
 
-    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as working_dir:
+    venv.temp_working_dir = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
 
-        volumes = {
-            working_dir: {
-                'bind': MOUNTED_WORKING_DIR,
-                'mode': 'rw'
-            }
+    working_dir = pathlib.Path(venv.temp_working_dir.name)
+
+    volumes = {
+        venv.temp_working_dir.name: {
+            'bind': MOUNTED_WORKING_DIR,
+            'mode': 'rw'
+        },
+        venv.envconfig.config.toxworkdir: {
+            'bind': MOUNTED_TOX_DIR,
+            'mode': 'rw'
         }
 
-        volumes.update(HERE_MOUNT)
-        tox.reporter.verbosity1(f'\nRunning env {env_name} in `{image}`!\n')
+    }
 
-        # For debugging. Having trouble? Throw a breakpoint in here and this
-        # var should have a CLI command to drop into bash on the image
-        run_cmd = ' '.join([
-            f'docker run -it --entrypoint /bin/bash -u {os.getuid()} -v ',
-            ' -v '.join([f'\'{src}:{mount["bind"]}:{mount["mode"]}\''
-                for  src, mount in volumes.items()]),
-            f' {image}'])
+    volumes.update(HERE_MOUNT)
+    tox.reporter.verbosity1(f'\nRunning env {env_name} in `{image}`!\n')
 
-        tox.reporter.info(f"docker run command: `{run_cmd}`")
+    # For debugging. Having trouble? Throw a breakpoint in here and this
+    # var should have a CLI command to drop into bash on the image
+    run_cmd = ' '.join([
+        f'docker run -it --entrypoint /bin/bash -u {os.getuid()} -v ',
+        ' -v '.join([f'\'{src}:{mount["bind"]}:{mount["mode"]}\''
+            for  src, mount in volumes.items()]),
+        f' {image}'])
 
-        # If you don't have your IDE/PDB set up for doing breakpoints for you,
-        # This snippet below will break
-        if break_before_run and not util.is_in_docker():
-            import pdb
-            pdb.set_trace()
+    tox.reporter.info(f"docker run command: `{run_cmd}`")
 
-        command = ['-e', env_name]
+    if break_before_run and not util.is_in_docker():
+        import pdb
+        pdb.set_trace()
 
-        # Detatch makes it possible to keep the container around so that the plugin can
-        # interact with it
-        container = docker_client.containers.run(
-                image=image,
-                volumes=volumes,
-                stream=True,
-                stderr=True,
-                stdout=True,
-                command=command,
-                user=os.getuid(),
-                remove=remove_container,
-                detach=True)
+    command = ['-e', env_name]
+
+    def termcleanup(container):
+        tox.reporter.error('SIGINT recieved!')
+        container.kill('SIGINT')
+        tox.reporter.info('waiting on container to terminate after SIGINT')
+        # ToDo perhaps do something with result of wait (and maybe container logs)
+        container.wait()
+        tox.reporter.info('done waiting, container terminated')
+
+        venv.status = "Terminated"
+
+    # Detatch makes it possible to keep the container around so that the plugin can
+    # interact with it
+    container = docker_client.containers.create(
+            image=image,
+            volumes=volumes,
+            command=command,
+            user=os.getuid(),
+            detach=True)
+
+    with util.HandleInterruptions() as sigint_handler:
+
+        sigint_handler.add_cleanup(termcleanup, container)
+
+        container.start()
 
         for line in container.attach(logs=True, stdout=True, stderr=True, stream=True):
 
@@ -247,8 +258,23 @@ def run_tests(venv: tox.venv.VirtualEnv, /,
 
         result = container.wait()
         status = result['StatusCode']
-        if status != 0:
-            raise docker.errors.ContainerError(
-                container, status, command, image, container.logs(stdout=False, stderr=True))
+
+        if break_after_run and not util.is_in_docker():
+            import pdb
+            pdb.set_trace()
+
+
+    if status != 0:
+        venv_status = "Terminated" if status == 2 else None
+        raise ContainerError(
+            container, status, command, image,
+            container.logs(stdout=False, stderr=True))
 
     return container
+
+
+class ContainerError(docker.errors.ContainerError):
+
+    def __init__(self, container, status, command, image, logs, venv_status=None):
+        self.venv_status = venv_status
+        super().__init__(container, status, command, image, logs)
