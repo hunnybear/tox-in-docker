@@ -1,12 +1,22 @@
 [paths]
 source =
    ./src/
+   /.tox/py*/lib/python*/site-packages/
 
 [run]
 branch = true
+relative_files = True
 parallel = true
 source =
-    ./src/tox_in_docker
+   /.tox/py*/lib/python*/site-packages/
+   .tox/py*/lib/python*/site-packages/
+#   /.tox/py39/lib/python3.9/site-packages/
+#   /.tox/pypy39/lib/python3.9/site-packages/
+#   .tox/py10/lib/python3.10/site-packages/
+   ./src/
+
+source_pkgs =
+   tox_in_docker
 
 [report]
 ignore_errors = true
