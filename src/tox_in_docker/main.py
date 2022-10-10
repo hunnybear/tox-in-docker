@@ -1,15 +1,16 @@
 
-import docker
-import docker.errors
 from functools import cache
 from io import BytesIO
 import os
 import os.path
 import pathlib
+import re
 import shutil
 import socket
 import stat
 import tempfile
+
+import docker
 import tox
 
 from tox_in_docker import util
