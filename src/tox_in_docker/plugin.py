@@ -192,6 +192,7 @@ def tox_get_python_executable(envconfig, skip_tid: bool=False):
     image = envconfig.docker_image or util.get_default_image(envconfig.envname, default='python:latest')
 
     if image:
+        envconfig.basepython = f'{envconfig.envname} (in docker)'
         return shutil.which('python')
 
 
@@ -213,6 +214,8 @@ def tox_runtest_pre(venv: tox.venv.VirtualEnv):
 
     if not do_run_in_docker(venv=venv):
         return None
+
+    #
 
     client = docker.client.from_env()
 

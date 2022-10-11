@@ -71,7 +71,7 @@ trap cleanup SIGINT
 
 sudo chmod -R 1777 {MOUNTED_WORKING_DIR} {MOUNTED_TOX_DIR}
 
-sudo rsync -avzO --info=stats1,misc0,flist0 --no-perms {MOUNT_POINT}/ --exclude .venv --exclude .tox --exclude .git {MOUNTED_WORKING_DIR}
+sudo rsync -azO --info=stats1,misc0,flist0 --no-perms {MOUNT_POINT}/ --exclude .venv --exclude .tox --exclude .git {MOUNTED_WORKING_DIR}
 cd {MOUNTED_WORKING_DIR}
 
 sudo chown -R {MY_UID}:{MY_GID} {MOUNTED_WORKING_DIR} {MOUNTED_TOX_DIR}
@@ -86,9 +86,15 @@ LOG_DIR=$(test -d {MOUNTED_WORKING_DIR} && echo "{MOUNTED_WORKING_DIR}" || echo 
 set +e
 
 set -o pipefail
+# ToDo: get package name and hopefully version
+#  or perhaps some other magick to inject the package, it probably exists
 tox $ignore_me --workdir "{MOUNTED_TOX_DIR}" "$@" ./tests | tee "${{LOG_DIR}}/out.log"
 res=$?
 set +o pipefail
+
+sudo pip install coverage
+coverage xml -o "{MOUNTED_TOX_DIR}/coverage.xml"
+coverage report
 
 cleanup
 
