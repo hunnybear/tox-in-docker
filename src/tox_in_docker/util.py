@@ -79,7 +79,6 @@ class NoJythonSupport(ValueError):
         super().__init__(msg)
 
 
-
 # These are ordered, the first one to achieve a match will be used
 ENV_IMAGE_XFORMS = [
     (re.compile(r'^py(\d*)$'),

@@ -27,7 +27,7 @@ writing, has only been used/tested on `ubuntu`-based and `debian`-based images.
 It is certainly intended to, in the future, support other linuxes. It is not
 certain that OSX support will be included, and if so, likely not soon. Windows
 is a monster for which I'd love to see PRs. If you're an intrepid dev who
-feels inclined to add any of the above support, off to 
+feels inclined to add any of the above support, off to
 [Contributing](#contributing) with you!
 
 Requirements
