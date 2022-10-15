@@ -196,5 +196,3 @@ class HandleInterruptions:
 
         if self.exit_code is not None:
             sys.exit(self.exit_code)
-
-
