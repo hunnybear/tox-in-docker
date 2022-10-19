@@ -1,4 +1,13 @@
+"""
+Tests for the utilities module of tox-in-docker
+"""
+
+
+from collections.abc import Iterator, Callable, Sequence, Mapping
+from dataclasses import dataclass
+import signal
 import unittest
+from unittest import mock
 
 from tox_in_docker import util
 
@@ -41,6 +50,133 @@ class TestGetDefaultImages(unittest.TestCase):
             self.assertEqual(res, 'python:3.13-slim')
 
     def test_jython_raises_exception(self):
-        for jython in ['jy', 'jython', 'jy27', 'jy2', 'jy3']:
+        for jython in ['jy', 'jython', 'jy27', 'jy2', 'jy3', 'jy39', 'jy10']:
             with self.assertRaises(util.NoJythonSupport):
                 util.get_default_image(jython)
+
+
+class TestInterruptionHandler(unittest.TestCase):
+
+    @dataclass
+    class CleanupCase:
+        pass_self: bool = None
+        pass_frame: bool = None
+        args: Sequence = None
+        kwargs: Mapping = None
+
+        def __repr__(self):
+            expected_args = self.get_expected_args('a handler', 'a frame')
+            expected_kwargs = self.get_expected_kwargs('a handler', 'a frame')
+            return f'{super().__repr__()[:-1]} pass_self: {self.pass_self} pass_frame: {self.pass_frame}>\n\t{self.get_args()}  -->  {expected_args}\n\t{self.get_kwargs()}  -->  {expected_kwargs}'
+
+        def get_args(self) -> tuple:
+            if self.args:
+                return tuple(self.args)
+
+            return tuple()
+
+        def get_kwargs(self) -> dict:
+
+            kwargs = self.kwargs or {}
+            kwargs.update(
+                {
+                    'pass_self': self.pass_self,
+                    'pass_frame': self.pass_frame
+                }
+            )
+
+            return kwargs
+
+        def get_expected_call(self, handler: mock.Mock, frame: mock.Mock) -> tuple:
+            return (
+                self.get_expected_args(handler, frame),
+                self.get_expected_kwargs(handler, frame))
+
+        def get_expected_args(self, handler: mock.Mock, frame: mock.Mock) -> tuple:
+            expected = []
+            if self.pass_self:
+                expected.append(handler)
+            if self.pass_frame:
+                expected.append(frame)
+
+            if self.args:
+                expected.extend(self.args)
+
+            return tuple(expected)
+
+        def get_expected_kwargs(self, handler: mock.Mock, frame: mock.Mock) -> dict:
+            return dict(self.kwargs) if self.kwargs else dict()
+
+    def setUp(self) -> None:
+
+        signal_patch = mock.patch('signal.signal')
+        self.signal_mock = signal_patch.start()
+        self.addCleanup(signal_patch.stop)
+
+    def test_handler_sig(self) -> None:
+
+        handler = util.HandleInterruptions()
+
+        self.signal_mock.assert_called_once_with(signal.SIGINT, handler._gracefully_interrupt)
+
+    def test_context_manager(self) -> None:
+
+        with util.HandleInterruptions() as handler:
+            self.signal_mock.assert_called_once_with(signal.SIGINT, handler._gracefully_interrupt)
+            self.signal_mock.reset_mock()
+
+        self.signal_mock.assert_called_once_with(signal.SIGINT, handler.prev_int_handler)
+
+    def test_handler_multiple_cleanups(self) -> None:
+        """
+        Ensure that multiple cleanups can be added to the handler, and that they are all called
+        """
+
+
+    def test_handler_cleanups(self) -> None:
+        kwarg_a, kwarg_b, arg1, arg2 = (mock.Mock(name=name) for name in ['kwarg: a', 'kwarg:b', 'arg:1', 'arg:2'])
+        mock_args = (arg1, arg2)
+        mock_kwargs = {'a': kwarg_a, 'b': kwarg_b}
+
+        # I'm always of two minds when deciding whether to automatically
+        # generate cases like this, or manually define them.
+        cases = [
+            # pass neither self nor frame
+            self.CleanupCase(pass_self=False, pass_frame=False, args=mock_args, kwargs=mock_kwargs),
+            self.CleanupCase(pass_self=False, pass_frame=False, args=mock_args),
+            self.CleanupCase(pass_self=False, pass_frame=False, kwargs=mock_kwargs),
+            self.CleanupCase(pass_self=False, pass_frame=False),
+            # pass self, not frame
+            self.CleanupCase(pass_self=True, pass_frame=False, args=mock_args, kwargs=mock_kwargs),
+            self.CleanupCase(pass_self=True, pass_frame=False, args=mock_args),
+            self.CleanupCase(pass_self=True, pass_frame=False, kwargs=mock_kwargs),
+            self.CleanupCase(pass_self=True, pass_frame=False),
+            # Pass frame, not self
+            self.CleanupCase(pass_self=False, pass_frame=True, args=mock_args, kwargs=mock_kwargs),
+            self.CleanupCase(pass_self=False, pass_frame=True, args=mock_args),
+            self.CleanupCase(pass_self=False, pass_frame=True, kwargs=mock_kwargs),
+            self.CleanupCase(pass_self=False, pass_frame=True),
+            # Pass both self and frame
+            self.CleanupCase(pass_self=True, pass_frame=True, args=mock_args, kwargs=mock_kwargs),
+            self.CleanupCase(pass_self=True, pass_frame=True, args=mock_args),
+            self.CleanupCase(pass_self=True, pass_frame=True, kwargs=mock_kwargs),
+            self.CleanupCase(pass_self=True, pass_frame=True),
+        ]
+
+        interruption_handler = util.HandleInterruptions()
+
+        signal_int_mock = mock.Mock(spec=1)
+        frame_mock = mock.Mock()
+
+        for case in cases:
+            cleanup = mock.Mock()
+            expected_args, expected_kwargs = case.get_expected_call(interruption_handler, frame_mock)
+
+            with self.subTest(case=case):
+                interruption_handler.add_cleanup(cleanup, *case.get_args(), **case.get_kwargs())
+                interruption_handler._gracefully_interrupt(signal_int_mock, frame_mock)
+
+                self.assertFalse(interruption_handler.handling)
+                cleanup.assert_called_once_with(
+                    *expected_args,
+                    **expected_kwargs)
