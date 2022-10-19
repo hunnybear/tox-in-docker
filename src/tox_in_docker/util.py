@@ -172,6 +172,13 @@ class HandleInterruptions:
         return cleanup_spec
 
     def _gracefully_interrupt(self, sig: int, frame) -> None:
+        """
+
+        Notes:
+            * I'm not certain if I want this to catch and re-raise exceptions,
+                or some other similar Magick
+        """
+
         for this_handler, pass_self, pass_frame, posargs, kwargs in self._cleanup:
             if pass_self and pass_frame:
                 posargs = tuple([self, frame] + list(posargs))
@@ -181,7 +188,7 @@ class HandleInterruptions:
                 posargs = tuple([frame] + list(posargs))
             this_handler(*posargs, **kwargs)
 
-        handling = False
+        self.handling = False
 
     def __enter__(self):
         self.handling = True
