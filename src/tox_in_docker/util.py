@@ -169,6 +169,8 @@ class HandleInterruptions:
             handler=handler, pass_self=pass_self, pass_frame=pass_frame, args=args, kwargs=kwargs)
         self._cleanup.append(cleanup_spec)
 
+        return cleanup_spec
+
     def _gracefully_interrupt(self, sig: int, frame) -> None:
         for this_handler, pass_self, pass_frame, posargs, kwargs in self._cleanup:
             if pass_self and pass_frame:
