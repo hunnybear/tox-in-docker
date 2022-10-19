@@ -33,7 +33,11 @@ jobs:
           args: ".[test]"
       - run:
           name: Run tests
-          command: tox -e py$(echo "<< parameters.py_version >>" | awk -F "[.]+" '/3/{ if (length($2) == 2) {print $2} else {print $1$2}}')
+          # Tee tox, so that it doesn't get a TTY
+          command: > 
+            tox -e py$(
+              echo "<< parameters.py_version >>" | awk -F "[.]+" '/3/{ if (length($2) == 2) {print $2} else {print $1$2}}'
+            ) | tee tox.log 
 
 workflows:
   test: 
