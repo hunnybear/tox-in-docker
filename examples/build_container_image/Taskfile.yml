@@ -20,7 +20,7 @@ tasks:
       EXTRAS_REQ:
         sh: 'test -n "{{ .EXTRAS }}" && echo "\[ {{.EXTRAS }}\]" || echo ""'
     status:
-      - 'bash -c "test -n \"{{ .SKIP_SETUP }}\" && test -n \"{{ .EXTRAS }}\""'
+      - 'bash -c "test -n \"{{ .SKIP_SETUP }}\""'
     cmds:
       - 'bash -c "{{.ACTIVATE}} && pip install ../.. && pip install .\[testing\]"'
 
