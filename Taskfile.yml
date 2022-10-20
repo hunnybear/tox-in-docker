@@ -2,7 +2,7 @@ version: 3
 vars:
   VENV_DIR: '.venv'
   ACTIVATE: 'source {{ .VENV_DIR }}/bin/activate'
-  SKIP_SETUP: '{{ .SKIP_SETUP }}'
+  SKIP_INSTALL: '{{ .SKIP_INSTALL }}'
 
 tasks:
 
@@ -10,7 +10,7 @@ tasks:
     run: once
     cmds: ['python3 -m venv {{ .VENV_DIR }}']
     status:
-      - 'test -n "{{ .SKIP_SETUP }}"'
+      - 'test -n "{{ .SKIP_INSTALL }}"'
 
   install:
     deps: [setup_venv]
@@ -20,7 +20,7 @@ tasks:
       EXTRAS_REQ:
         sh: 'test -n "{{ .EXTRAS }}" && echo "\[ {{.EXTRAS }}\]" || echo ""'
     status:
-      - 'bash -c "test -n \"{{ .SKIP_SETUP }}\" && test -n \"{{ .EXTRAS }}\""'
+      - 'bash -c "test -n \"{{ .SKIP_INSTALL }}\""'
     cmds:
       - 'bash -c "{{.ACTIVATE}} && pip install .{{ .EXTRAS_REQ }}"'
 
