@@ -16,8 +16,9 @@ def _get_mocks(count:int) -> list:
 
 class TestConfiguration(unittest.TestCase):
 
-    def test_add_option(self) -> None:
-
+    @mock.patch('tox_in_docker.plugin.USER_CONF_FILE')
+    def test_add_option(self, conf_file_mock) -> None:
+        conf_file_mock.is_file.configure_mock(return_value=False)
         parser_mock = mock.Mock(spec=tox.config.Parser())
 
         res = plugin.tox_addoption(parser_mock)
