@@ -194,7 +194,7 @@ Note that you can replace `python3` with a minor version, e.g. `python3.10`.
 
 ### Testing
 
-Tests may be run via `task` with `task test`
+Tests may be run via `task` with `task test` (or, [`task quick-test`](#quicker-tests))
 This runs tests with `tox`. If you wish to pass arguments to `tox`, such as
 environment specifiers (e.g. `-e py39`), you may pass any arguments you wish
 after a double hyphen.
@@ -202,6 +202,15 @@ after a double hyphen.
 For example, if you wish to only test CPython3.9 and CPython3.10:
 
 `task test -- -e py39 -e py10`
+
+#### Quicker tests
+
+As tox-in-docker eats delicious dogfood, `task` uses the version of
+tox-in-docker in the local directory for its own testing environment. One
+downside of this is that it can create a ton of needless wasted time re- and
+re- and re-installing tox-in-docker. After the initial `./.venv` setup has
+been done, you can probably get away fine with using `task quick-test` unless
+you're using that install process to Dx/debug something.
 
 
 ### Tooling
