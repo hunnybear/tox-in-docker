@@ -28,7 +28,7 @@ jobs:
         type: string
       python_base:
         type: string
-        default: python
+        default: cimg/python
     steps:
       - checkout
       - python/install-packages:
@@ -46,8 +46,14 @@ jobs:
 workflows:
   test: 
     jobs:
+      # Not using a matrix here, as as of this writing, pypy didn't have a 3.10 image
       - build-and-test:
-          matrix:
-            parameters:
-              py_version: ["3.9", "3.10"]
-              python_base: ["cimg/python", "pypy"]
+          name: "build and test: Python 3.9"
+          py_version: "3.9"
+      - build-and-test:
+          name: "build and test: Python 3.10"
+          py_version: "3.10"
+      - build-and-test:
+          name: "build and test: Pypy 3.9"
+          py_version: "3.9"
+          python_base: "pypy"
