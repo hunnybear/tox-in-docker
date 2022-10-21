@@ -13,6 +13,7 @@ import pathlib
 import re
 import signal
 import sys
+from typing import Any
 
 LATEST = 'python:latest'
 
@@ -87,6 +88,35 @@ ENV_IMAGE_XFORMS = [
         lambda match: f'pypy:{_get_version_tag(match)}-slim'),
     (re.compile(r'^(jy.*)$'), NoJythonSupport)
 ]
+
+
+def env_to_bool(env_var:str , default: bool = False) -> bool:
+    """
+    Given the name of an environment variable, return whether it's set and
+    truthy, with the inverse of truthy for this case meaning:
+
+    Falsey ~= r'^(?:(?:\s*[nN][oO]\s*)|(?:\s*[fF][aA][lL][sS][eE]\s*)|(?:\s*0+\s*))$'
+
+    or, in plainer english:
+
+    if the env variable has a non-whitespace value which is either 'no',
+    'false', or any number of zeros (case insensitive, with external
+    whitespace stripped), `True` will be returned.
+
+    I have chosen not to get cute and deal with cases like `   false false` or
+    `false 324` in particularly exciting ways, instead treating both as True.
+    """
+
+    if not os.getenv(env_var):
+        return default
+
+    if os.getenv(env_var).strip().isdigit():
+        return bool(int(os.getenv(env_var).strip()))
+
+    elif os.getenv(env_var).strip().lower() in ['false', 'no']:
+        return False
+
+    return True
 
 
 def is_in_docker():

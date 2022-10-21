@@ -76,8 +76,11 @@ class TestInterruptionHandler(unittest.TestCase):
             return tuple()
 
         def get_kwargs(self) -> dict:
+            """
+            Get the kwargs used to call the handler's `.add_cleanup()`
+            """
 
-            kwargs = self.kwargs or {}
+            kwargs = dict(self.kwargs) if self.kwargs else {}
             kwargs.update(
                 {
                     'pass_self': self.pass_self,
@@ -105,7 +108,9 @@ class TestInterruptionHandler(unittest.TestCase):
             return tuple(expected)
 
         def get_expected_kwargs(self, handler: mock.Mock, frame: mock.Mock) -> dict:
-            return dict(self.kwargs) if self.kwargs else dict()
+            # return a copy, as the original is mutable.
+            return dict(self.kwargs) if self.kwargs else {}
+
 
     def setUp(self) -> None:
 
