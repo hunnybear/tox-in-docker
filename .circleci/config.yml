@@ -22,7 +22,7 @@ jobs:
     # Change the version below to your required version of python
     docker:
       - image: "<<parameters.python_base>>:<< parameters.py_version >>"
-      - entrypoint: "/bin/bash"
+        entrypoint: "/bin/bash"
     parameters:
       py_version:
         type: string
