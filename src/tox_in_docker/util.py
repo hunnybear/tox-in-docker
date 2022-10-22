@@ -107,13 +107,15 @@ def env_to_bool(env_var:str , default: bool = False) -> bool:
     `false 324` in particularly exciting ways, instead treating both as True.
     """
 
-    if not os.getenv(env_var):
+    env_val = os.getenv(env_var)
+
+    if not env_val:
         return default
 
-    if os.getenv(env_var).strip().isdigit():
+    if env_val.strip().isdigit():
         return bool(int(os.getenv(env_var).strip()))
 
-    elif os.getenv(env_var).strip().lower() in ['false', 'no']:
+    elif env_val.strip().lower() in ['false', 'no']:
         return False
 
     return True
@@ -129,7 +131,7 @@ def _get_version_tag(env_version: str):
     Get the docker tag to use given the python environment name
     """
 
-    if not env_version:
+    if not env_version or env_version.lower() == 'latest':
         return 'latest'
 
     elif not env_version.isdigit():
