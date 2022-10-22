@@ -53,6 +53,11 @@ tasks:
     cmds:
       - bash -c '{{ .ACTIVATE }} && tox . {{.CLI_ARGS}}'
 
+  quicker-test:
+    deps:
+      - setup_venv
+    cmds:
+      - bash -c '{{ .ACTIVATE }} && tox . -e py39 -e py10 -e pypy39 {{.CLI_ARGS}}'
 
   test:
     deps:
