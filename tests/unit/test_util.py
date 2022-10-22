@@ -11,6 +11,72 @@ from unittest import mock
 
 from tox_in_docker import util
 
+def test_is_in_docker():
+    with mock.patch('os.path.exists') as path_exists_mock:
+        for case in [True, False]:
+            path_exists_mock.reset_mock()
+            path_exists_mock.configure_mock(return_value=case)
+            res = util.is_in_docker()
+            assert res == case
+            path_exists_mock.assert_called_once_with('/.dockerenv')
+
+
+class TestGetVersionTag(unittest.TestCase):
+
+    def test_get_latest(self) -> None:
+        for case in ['latest', 'Latest', '', None, False]:
+            with self.subTest(case=case):
+                self.assertEqual(util._get_version_tag(case), 'latest')
+
+
+class TestGetBoolFromEnv(unittest.TestCase):
+    def test_false(self) -> None:
+        ENV = 'AN_ENV_VAR_THAT_MAKES_SENSE_YEA'
+        for sub_test in ['no', 'false', '0']:
+            with self.subTest(case=sub_test):
+                for case in [
+                    sub_test.lower(),
+                    sub_test.upper(),
+                    sub_test[0].upper() + sub_test[1:].lower(),
+                    sub_test[0].lower() + sub_test[1:].upper(),
+                    sub_test[:-1].lower() + sub_test[-1].upper(),
+                    sub_test[:-1].upper() + sub_test[-1].lower()]:
+
+                    with mock.patch('os.getenv', return_value=case) as getenv_patch:
+                        self.assertFalse(util.env_to_bool(ENV))
+
+
+    def test_default(self) -> None:
+
+        with mock.patch('os.getenv') as getenv_patch:
+            default = 'default'
+            ev = 'FOO'
+
+            getenv_patch.configure_mock(return_value=None)
+
+            # positional
+            res = util.env_to_bool(ev, default)
+            getenv_patch.assert_called_once_with(ev)
+            self.assertEqual(res, default)
+
+            # kwarg
+            getenv_patch.reset_mock()
+            getenv_patch.configure_mock(return_value=None)
+
+            res = util.env_to_bool(ev, default=default)
+            getenv_patch.assert_called_once_with(ev)
+            self.assertEqual(res, default)
+
+            # ensure not over-respected
+            getenv_patch.reset_mock()
+            getenv_patch.configure_mock(return_value='TRUE')
+            res = util.env_to_bool(ev, default=default)
+
+            getenv_patch.assert_called_once_with(ev)
+            # Don't check for correct value here, just assert that the default
+            # has not been used.
+            self.assertNotEqual(res, default)
+
 
 class TestGetDefaultImages(unittest.TestCase):
     BASES = [('py', 'python'), ('pypy', 'pypy')]
