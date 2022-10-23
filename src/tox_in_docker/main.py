@@ -61,10 +61,11 @@ ENTRYPOINT_PERMS = stat.S_IWUSR | stat.S_IRUSR | stat.S_IRGRP | stat.S_IROTH | s
 ENTRYPOINT_SCRIPT_TEMPL = f"""#!/bin/bash
 set -e
 # `set -x` will print all commands as they are being run
-#set -x
+# set -x
 
 function cleanup() {{
-    sudo chown -R 0:0 {MOUNTED_WORKING_DIR} {MOUNTED_TOX_DIR}
+
+    sudo chown -R {MY_UID}:{MY_GID} {MOUNTED_WORKING_DIR} {MOUNTED_TOX_DIR}
     sudo chmod -R 1777 {MOUNTED_WORKING_DIR} {MOUNTED_TOX_DIR}
 }}
 
@@ -94,9 +95,9 @@ tox $ignore_me --workdir "{MOUNTED_TOX_DIR}" "$@" ./tests | tee "${{LOG_DIR}}/ou
 res=$?
 set +o pipefail
 
-sudo pip install coverage
-coverage xml -o "{MOUNTED_TOX_DIR}/coverage.xml"
-coverage report
+#sudo pip install coverage
+#coverage xml -o "{MOUNTED_TOX_DIR}/coverage.xml"
+#coverage report
 
 cleanup
 
